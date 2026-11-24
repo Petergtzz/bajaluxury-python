@@ -3,7 +3,13 @@ from decimal import Decimal
 
 from baja.kit.utils import generate_uuid
 from baja.ledger.service import affects_balance
-from baja.models import PaymentMethod, Property, Transaction, TransactionType
+from baja.models import (
+    GuestExpense,
+    PaymentMethod,
+    Property,
+    Transaction,
+    TransactionType,
+)
 from tests.fixtures.database import SaveFixture
 
 
@@ -35,3 +41,26 @@ async def create_transaction(
     )
     await save_fixture(transaction)
     return transaction
+
+
+async def create_guest_expense(
+    save_fixture: SaveFixture,
+    property: Property,
+    *,
+    amount: Decimal | str = "456.50",
+    category: str = "transport",
+    concept: str = "airport pickup",
+    date: dt.date = dt.date(2026, 11, 5),
+    source: str = "web",
+) -> GuestExpense:
+    guest_expense = GuestExpense(
+        property_id=property.id,
+        amount=Decimal(amount),
+        category=category,
+        concept=concept,
+        date=date,
+        source=source,
+        external_id=str(generate_uuid()),
+    )
+    await save_fixture(guest_expense)
+    return guest_expense

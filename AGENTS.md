@@ -25,6 +25,7 @@ task db_migrate                # apply migrations
 task api                       # http://127.0.0.1:8000
 task worker                    # background jobs (emails)
 task import_legacy <dsn>       # copy the Laravel database in (re-runnable, --dry-run)
+task api_tokens issue <email> <label>   # a token for a phone; also list, revoke
 task test                      # pytest, one database per worker
 task lint && task lint_types
 ```
@@ -41,6 +42,6 @@ Requirements: Python 3.14, Postgres 17 and Redis on localhost.
 - Errors are always `{"error": <code>, "detail": <message>}`. Raise a `BajaError` subclass.
 - Tests run inside a transaction that is rolled back; requests in a test use savepoints in it.
 - Background work goes through `enqueue_job`; jobs are sent only after the transaction commits, and emails are only sent from jobs. Tests use an in-memory broker and read what was queued from the `sent_jobs` fixture.
-- Login is by emailed code (no passwords, no sign-up): only existing users get a code, and an unknown address gets the same answer. The session cookie holds a token; the database keeps only its hash.
+- Login is by emailed code (no passwords, no sign-up): only existing users get a code, and an unknown address gets the same answer. The session cookie holds a token; the database keeps only its hash. Devices such as the Shortcut send an API token instead (`Authorization: Bearer`, issued with `task api_tokens`); it acts as its user, with their role.
 - Permissions come from the user's role only (`authz/permission.py`). Endpoints take `Authorize(Permission.x)`. Owners and managers see every property; a homeowner sees the properties assigned in `property_members`, and every query over property-owned rows applies `visible_properties` so anything else is a 404.
 - Rate limits are fixed windows in Redis (`kit/rate_limit.py`), charged before the work they guard.

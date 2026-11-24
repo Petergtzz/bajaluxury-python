@@ -49,6 +49,7 @@ include = ["baja*"]
 api = { cmd = "uvicorn baja.app:app --reload --host 127.0.0.1 --port 8000", help = "run the API" }
 worker = { cmd = "dramatiq --processes 1 --threads 1 --watch baja baja.worker.run", help = "run the background worker" }
 db_migrate = { cmd = "alembic upgrade head", help = "apply database migrations" }
+api_tokens = { cmd = "python -m scripts.api_tokens", help = "issue, list or revoke API tokens: task api_tokens issue <email> <label>" }
 import_legacy = { cmd = "python -m scripts.import_legacy", help = "copy the Laravel database in: task import_legacy <dsn> [--dry-run]" }
 test = { cmd = "python -m pytest -n auto", help = "run all tests in parallel" }
 lint = { cmd = "ruff format . && ruff check --fix .", help = "format and lint with autofix" }

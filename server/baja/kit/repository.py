@@ -1,6 +1,7 @@
 from typing import Any, ClassVar, Self
 
 from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
 
 from baja.kit.db.models import RecordModel
@@ -36,6 +37,24 @@ class RepositoryBase[M: RecordModel]:
         if flush:
             await self.session.flush()
         return model
+
+    async def create_once(self, model: M, existing: Select[M]) -> tuple[M, bool]:
+        """
+        Creates the model unless `existing` finds its row; whether it created it.
+
+        Two requests racing to create the same row both end up with that row:
+        the loser's insert fails on a unique constraint and finds the winner's.
+        """
+        if (found := await self.get_one_or_none(existing)) is not None:
+            return found, False
+        try:
+            async with self.session.begin_nested():
+                await self.create(model)
+        except IntegrityError:
+            if (found := await self.get_one_or_none(existing)) is None:
+                raise
+            return found, False
+        return model, True
 
     async def update(self, model: M, update_dict: dict[str, Any]) -> M:
         for key, value in update_dict.items():

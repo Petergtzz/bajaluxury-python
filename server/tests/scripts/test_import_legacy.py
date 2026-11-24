@@ -6,11 +6,12 @@ import pytest
 from sqlalchemy import select
 
 from baja.kit.db.postgres import AsyncSession
-from baja.models import PaymentMethod, Property, Transaction
+from baja.models import GuestExpense, PaymentMethod, Property, Transaction
 from scripts.import_legacy import (
     BalanceCheck,
     Legacy,
     LegacyDataInvalid,
+    LegacyGuestExpense,
     LegacyHouse,
     LegacyTransaction,
     import_legacy,
@@ -164,4 +165,62 @@ async def test_refuses_data_it_cannot_map_and_says_where(
         "transaction 1: unknown payment method 'bitcoin'",
         "transaction 2: amount 0 is not positive",
         "transaction 3: unknown house 99",
+    ]
+
+
+def guest_expense(id: int, house_id: int = 1, **changes: object) -> LegacyGuestExpense:
+    values: dict[str, object] = {
+        "id": id,
+        "house_id": house_id,
+        "amount": Decimal("456.50"),
+        "category": "transport",
+        "concept": "airport pickup",
+        "date": dt.date(2026, 7, 2),
+        "description": "arrival",
+        "created_at": None,
+    }
+    return LegacyGuestExpense(**(values | changes))  # type: ignore[arg-type]
+
+
+async def test_copies_guest_expenses_apart_from_the_ledger(
+    session: AsyncSession,
+) -> None:
+    legacy = dataclasses.replace(
+        LEGACY,
+        guest_expenses=[
+            guest_expense(1),
+            guest_expense(2, source="shortcut", external_id="S-2"),
+        ],
+    )
+
+    checks = await import_legacy(session, legacy)
+    again = await import_legacy(
+        session, dataclasses.replace(legacy, guest_expenses=legacy.guest_expenses[1:])
+    )
+
+    copied = (
+        await session.execute(
+            select(GuestExpense).where(GuestExpense.deleted_at.is_(None))
+        )
+    ).scalars()
+    assert [(g.source, g.external_id, g.amount) for g in copied] == [
+        ("shortcut", "S-2", Decimal("456.50"))
+    ]
+    assert checks == again
+    assert checks[0].new == Decimal("749.50")
+
+
+async def test_lists_problems_in_both_tables_together(session: AsyncSession) -> None:
+    broken = dataclasses.replace(
+        LEGACY,
+        transactions=[transaction(1, type="refund")],
+        guest_expenses=[guest_expense(9, category=None)],
+    )
+
+    with pytest.raises(LegacyDataInvalid) as error:
+        await import_legacy(session, broken)
+
+    assert error.value.problems == [
+        "transaction 1: unknown type 'refund'",
+        "guest expense 9: has no category",
     ]

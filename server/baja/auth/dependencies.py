@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import Depends, Request, Security
-from fastapi.security import APIKeyCookie
+from fastapi.security import APIKeyCookie, HTTPBearer
 
 from baja.config import settings
 from baja.exceptions import Unauthorized
@@ -15,10 +15,17 @@ session_cookie_scheme = APIKeyCookie(
     description="Session cookie set by the login endpoints.",
     auto_error=False,
 )
+api_token_scheme = HTTPBearer(
+    scheme_name="api_token",
+    description="An API token, for devices such as the Shortcut.",
+    auto_error=False,
+)
 
 
 async def get_auth_subject(
-    request: Request, _cookie: str | None = Security(session_cookie_scheme)
+    request: Request,
+    _cookie: str | None = Security(session_cookie_scheme),
+    _bearer: object = Security(api_token_scheme),
 ) -> AuthSubject:
     auth_subject: AuthSubject = request.state.auth_subject
     return auth_subject

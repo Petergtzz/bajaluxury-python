@@ -18,8 +18,8 @@ Usage: python -m scripts.import_legacy <laravel-dsn> [--dry-run]
 import asyncio
 import datetime as dt
 import sys
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -31,7 +31,13 @@ from baja.kit.db.postgres import AsyncSession, create_async_sessionmaker
 from baja.kit.utils import generate_uuid, utc_now
 from baja.ledger.repository import TransactionRepository
 from baja.ledger.service import affects_balance
-from baja.models import PaymentMethod, Property, Transaction, TransactionType
+from baja.models import (
+    GuestExpense,
+    PaymentMethod,
+    Property,
+    Transaction,
+    TransactionType,
+)
 from baja.postgres import create_async_engine
 from baja.property.repository import PropertyRepository
 
@@ -45,6 +51,10 @@ PAYMENT_METHODS = {method.value: method for method in PaymentMethod} | {
 }
 # Rows Laravel never gave an id are keyed by their old primary key.
 UNKEYED_SOURCE = "legacy"
+# Every source the old system writes. Rows from these are the copy and follow
+# the Laravel database, even sources the new app also writes, like the
+# Shortcut's: until the switch-over its entries go to the old system.
+LEGACY_SOURCES = {UNKEYED_SOURCE, "laravel", "reminders", "shortcut"}
 BATCH = 1000
 
 
@@ -73,11 +83,26 @@ class LegacyTransaction:
 
 
 @dataclass(frozen=True)
+class LegacyGuestExpense:
+    id: int
+    house_id: int
+    amount: Decimal
+    category: str | None
+    concept: str
+    date: dt.date
+    description: str | None
+    created_at: dt.datetime | None
+    source: str | None = None
+    external_id: str | None = None
+
+
+@dataclass(frozen=True)
 class Legacy:
     houses: list[LegacyHouse]
     transactions: list[LegacyTransaction]
     balances: dict[int, Decimal]
     """By house: the table the Laravel triggers kept."""
+    guest_expenses: list[LegacyGuestExpense] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -102,19 +127,19 @@ class LegacyDataInvalid(Exception):
 async def read_legacy(dsn: str) -> Legacy:
     connection = await asyncpg.connect(dsn)
     try:
-        keyed = await connection.fetchval(
-            "SELECT count(*) = 2 FROM information_schema.columns "
-            "WHERE table_name = 'transactions' "
-            "AND column_name IN ('source', 'external_id')"
-        )
         houses = await connection.fetch(
             "SELECT house_id, address, account_type, is_active FROM houses"
         )
-        transactions = await connection.fetch(
-            "SELECT id, house_id, type, amount, payment_method, category, concept, "
-            "date, description, created_at"
-            + (", source, external_id" if keyed else "")
-            + " FROM transactions"
+        transactions = await _fetch_keyed(
+            connection,
+            "transactions",
+            "id, house_id, type, amount, payment_method, category, concept, date, "
+            "description, created_at",
+        )
+        guest_expenses = await _fetch_keyed(
+            connection,
+            "guest_expenses",
+            "id, house_id, amount, category, concept, date, description, created_at",
         )
         balances = await connection.fetch("SELECT house_id, balance FROM balances")
     finally:
@@ -123,12 +148,40 @@ async def read_legacy(dsn: str) -> Legacy:
         houses=[LegacyHouse(**row) for row in houses],
         transactions=[LegacyTransaction(**row) for row in transactions],
         balances={row["house_id"]: row["balance"] for row in balances},
+        guest_expenses=[LegacyGuestExpense(**row) for row in guest_expenses],
     )
+
+
+async def _fetch_keyed(
+    connection: asyncpg.Connection, table: str, columns: str
+) -> list[asyncpg.Record]:
+    """Older Laravel databases predate `source` and `external_id`."""
+    keyed = await connection.fetchval(
+        "SELECT count(*) = 2 FROM information_schema.columns "
+        "WHERE table_name = $1 AND column_name IN ('source', 'external_id')",
+        table,
+    )
+    if keyed:
+        columns += ", source, external_id"
+    return list(await connection.fetch(f"SELECT {columns} FROM {table}"))
 
 
 async def import_legacy(session: AsyncSession, legacy: Legacy) -> list[BalanceCheck]:
     properties = await _import_houses(session, legacy.houses)
-    await _import_transactions(session, legacy.transactions, properties)
+    transactions, transaction_problems = _rows(
+        "transaction",
+        legacy.transactions,
+        lambda transaction: _transaction_row(transaction, properties),
+    )
+    guest_expenses, guest_expense_problems = _rows(
+        "guest expense",
+        legacy.guest_expenses,
+        lambda guest_expense: _guest_expense_row(guest_expense, properties),
+    )
+    if problems := transaction_problems + guest_expense_problems:
+        raise LegacyDataInvalid(problems)
+    await _mirror(session, Transaction, transactions)
+    await _mirror(session, GuestExpense, guest_expenses)
     balances = {
         balance.property_id: balance.balance
         for balance in await TransactionRepository.from_session(session).list_balances(
@@ -179,22 +232,26 @@ async def _import_houses(
     return properties
 
 
-async def _import_transactions(
-    session: AsyncSession,
-    transactions: list[LegacyTransaction],
-    properties: dict[int, Property],
-) -> None:
+def _rows[L: LegacyTransaction | LegacyGuestExpense](
+    kind: str, items: list[L], to_row: Callable[[L], dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[str]]:
     rows, problems = [], []
-    for transaction in transactions:
+    for item in items:
         try:
-            rows.append(_row(transaction, properties))
+            rows.append(to_row(item))
         except ValueError as e:
-            problems.append(f"transaction {transaction.id}: {e}")
-    if problems:
-        raise LegacyDataInvalid(problems)
+            problems.append(f"{kind} {item.id}: {e}")
+    return rows, problems
 
+
+async def _mirror(
+    session: AsyncSession,
+    model: type[Transaction | GuestExpense],
+    rows: list[dict[str, Any]],
+) -> None:
+    """Makes the model's imported rows exactly `rows`, keyed by source and id."""
     for batch in _batches(rows):
-        statement = insert(Transaction).values(batch)
+        statement = insert(model).values(batch)
         copied = [
             column
             for column in batch[0]
@@ -202,12 +259,12 @@ async def _import_transactions(
         ]
         await session.execute(
             statement.on_conflict_do_update(
-                index_elements=[Transaction.source, Transaction.external_id],
+                index_elements=[model.source, model.external_id],
                 set_={column: statement.excluded[column] for column in copied}
                 | {"modified_at": utc_now()},
                 where=or_(
                     *(
-                        getattr(Transaction, column).is_distinct_from(
+                        getattr(model, column).is_distinct_from(
                             statement.excluded[column]
                         )
                         for column in copied
@@ -218,9 +275,9 @@ async def _import_transactions(
 
     keys = {(row["source"], row["external_id"]) for row in rows}
     imported = await session.execute(
-        select(Transaction.id, Transaction.source, Transaction.external_id).where(
-            Transaction.source.in_({source for source, _ in keys}),
-            Transaction.deleted_at.is_(None),
+        select(model.id, model.source, model.external_id).where(
+            model.source.in_(LEGACY_SOURCES | {source for source, _ in keys}),
+            model.deleted_at.is_(None),
         )
     )
     gone = [
@@ -228,22 +285,18 @@ async def _import_transactions(
     ]
     for ids in _batches(gone):
         await session.execute(
-            update(Transaction)
-            .where(Transaction.id.in_(ids))
-            .values(deleted_at=utc_now())
+            update(model).where(model.id.in_(ids)).values(deleted_at=utc_now())
         )
-    # The bulk writes bypassed any transactions already loaded in the session.
-    for model in list(session.identity_map.values()):
-        if isinstance(model, Transaction):
-            session.expire(model)
+    # The bulk writes bypassed any of these rows already loaded in the session.
+    for loaded in list(session.identity_map.values()):
+        if isinstance(loaded, model):
+            session.expire(loaded)
 
 
-def _row(
+def _transaction_row(
     transaction: LegacyTransaction, properties: dict[int, Property]
 ) -> dict[str, Any]:
-    property = properties.get(transaction.house_id)
-    if property is None:
-        raise ValueError(f"unknown house {transaction.house_id}")
+    property = _property(transaction, properties)
     try:
         type = TransactionType(transaction.type)
     except ValueError:
@@ -252,36 +305,52 @@ def _row(
     if method and method not in PAYMENT_METHODS:
         raise ValueError(f"unknown payment method {transaction.payment_method!r}")
     payment_method = PAYMENT_METHODS[method] if method else None
-    if transaction.amount <= 0:
-        raise ValueError(f"amount {transaction.amount} is not positive")
-    if not transaction.category:
+    return _common_row(transaction, property) | {
+        "type": type,
+        "payment_method": payment_method,
+        "affects_balance": affects_balance(property, type, payment_method),
+    }
+
+
+def _guest_expense_row(
+    guest_expense: LegacyGuestExpense, properties: dict[int, Property]
+) -> dict[str, Any]:
+    return _common_row(guest_expense, _property(guest_expense, properties))
+
+
+def _property(
+    item: LegacyTransaction | LegacyGuestExpense, properties: dict[int, Property]
+) -> Property:
+    if (property := properties.get(item.house_id)) is None:
+        raise ValueError(f"unknown house {item.house_id}")
+    return property
+
+
+def _common_row(
+    item: LegacyTransaction | LegacyGuestExpense, property: Property
+) -> dict[str, Any]:
+    if item.amount <= 0:
+        raise ValueError(f"amount {item.amount} is not positive")
+    if not item.category:
         raise ValueError("has no category")
-    if transaction.external_id:
-        source, external_id = (
-            transaction.source or UNKEYED_SOURCE,
-            transaction.external_id,
-        )
+    if item.external_id:
+        source, external_id = item.source or UNKEYED_SOURCE, item.external_id
     else:
-        source, external_id = UNKEYED_SOURCE, str(transaction.id)
+        source, external_id = UNKEYED_SOURCE, str(item.id)
     return {
         "id": generate_uuid(),
         "property_id": property.id,
-        "type": type,
-        "amount": transaction.amount,
-        "payment_method": payment_method,
-        "category": transaction.category,
-        "concept": transaction.concept,
-        "date": transaction.date,
-        "description": transaction.description,
+        "amount": item.amount,
+        "category": item.category,
+        "concept": item.concept,
+        "date": item.date,
+        "description": item.description,
         "source": source,
         "external_id": external_id,
-        "affects_balance": affects_balance(property, type, payment_method),
         "deleted_at": None,
         # Laravel kept UTC without saying so.
         "created_at": (
-            transaction.created_at.replace(tzinfo=dt.UTC)
-            if transaction.created_at
-            else utc_now()
+            item.created_at.replace(tzinfo=dt.UTC) if item.created_at else utc_now()
         ),
     }
 
@@ -309,7 +378,8 @@ async def main(dsn: str, *, dry_run: bool) -> int:
         await engine.dispose()
 
     print(  # noqa: T201
-        f"{len(legacy.houses)} properties, {len(legacy.transactions)} transactions"
+        f"{len(legacy.houses)} properties, {len(legacy.transactions)} transactions, "
+        f"{len(legacy.guest_expenses)} guest expenses"
         + (" (dry run, nothing saved)" if dry_run else "")
     )
     width = max(len(check.property_name) for check in checks)

@@ -2,8 +2,6 @@ import datetime as dt
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
-
 from baja.authz.filters import visible_properties
 from baja.exceptions import Conflict, ResourceNotFound
 from baja.kit.db.postgres import AsyncReadSession, AsyncSession
@@ -16,15 +14,10 @@ from baja.models import (
     TransactionType,
     User,
 )
-from baja.property.repository import PropertyRepository
+from baja.property.service import property as property_service
 
 from .repository import TransactionRepository
 from .schemas import PropertyBalance, TransactionCreate, TransactionUpdate
-
-
-class PropertyArchived(Conflict):
-    def __init__(self) -> None:
-        super().__init__("This property is archived and takes no new transactions.")
 
 
 class TransactionDeleted(Conflict):
@@ -89,43 +82,38 @@ class LedgerService:
         transaction_create: TransactionCreate,
         *,
         source: str,
-    ) -> Transaction:
+    ) -> tuple[Transaction, bool]:
         """
         Records a transaction once per `external_id` within its source.
 
         A repeat returns the transaction already recorded, so a client that
-        lost the response can safely send the same entry again.
+        lost the response can safely send the same entry again. Says whether
+        it recorded a new one.
         """
         repository = TransactionRepository.from_session(session)
-        external_id = transaction_create.external_id
-        if external_id is not None:
-            existing = await repository.get_by_external_id(source, external_id)
-            if existing is not None:
-                return self._replayed(existing)
+        external_id = transaction_create.external_id or str(generate_uuid())
+        existing = repository.get_by_external_id_statement(source, external_id)
+        if (found := await repository.get_one_or_none(existing)) is not None:
+            return self._replayed(found), False
 
-        property = await self._get_open_property(
+        property = await property_service.get_open(
             session, user, transaction_create.property_id
         )
-        values = transaction_create.model_dump(exclude={"external_id"})
-        transaction = Transaction(
-            **values,
-            source=source,
-            external_id=external_id or str(generate_uuid()),
-            affects_balance=affects_balance(
-                property, transaction_create.type, transaction_create.payment_method
+        transaction, created = await repository.create_once(
+            Transaction(
+                **transaction_create.model_dump(exclude={"external_id"}),
+                source=source,
+                external_id=external_id,
+                affects_balance=affects_balance(
+                    property,
+                    transaction_create.type,
+                    transaction_create.payment_method,
+                ),
+                entered_by_id=user.id,
             ),
-            entered_by_id=user.id,
+            existing,
         )
-        try:
-            async with session.begin_nested():
-                await repository.create(transaction)
-        except IntegrityError:
-            # The same entry, sent twice at once: the other request recorded it.
-            existing = await repository.get_by_external_id(source, str(external_id))
-            if existing is None:
-                raise
-            return self._replayed(existing)
-        return transaction
+        return self._replayed(transaction), created
 
     async def update(
         self,
@@ -142,9 +130,9 @@ class LedgerService:
         if {"property_id", "type", "payment_method"} & changes.keys():
             property_id = changes.get("property_id", transaction.property_id)
             if property_id == transaction.property_id:
-                property = await self._get_property(session, user, property_id)
+                property = await property_service.get(session, user, property_id)
             else:
-                property = await self._get_open_property(session, user, property_id)
+                property = await property_service.get_open(session, user, property_id)
             changes["affects_balance"] = affects_balance(
                 property,
                 changes.get("type", transaction.type),
@@ -168,24 +156,6 @@ class LedgerService:
         if transaction.deleted_at is not None:
             raise TransactionDeleted()
         return transaction
-
-    async def _get_property(
-        self, session: AsyncReadSession, user: User, property_id: UUID
-    ) -> Property:
-        property = await PropertyRepository.from_session(session).get_visible(
-            user, property_id
-        )
-        if property is None:
-            raise ResourceNotFound("Property not found.")
-        return property
-
-    async def _get_open_property(
-        self, session: AsyncReadSession, user: User, property_id: UUID
-    ) -> Property:
-        property = await self._get_property(session, user, property_id)
-        if property.is_archived:
-            raise PropertyArchived()
-        return property
 
 
 ledger = LedgerService()

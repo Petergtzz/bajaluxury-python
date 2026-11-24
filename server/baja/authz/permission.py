@@ -12,6 +12,8 @@ class Permission(StrEnum):
     properties_manage = "properties:manage"
     transactions_read = "transactions:read"
     transactions_manage = "transactions:manage"
+    guest_expenses_read = "guest_expenses:read"
+    guest_expenses_manage = "guest_expenses:manage"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -24,10 +26,16 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.properties_manage,
             Permission.transactions_read,
             Permission.transactions_manage,
+            Permission.guest_expenses_read,
+            Permission.guest_expenses_manage,
         }
     ),
     Role.homeowner: frozenset(
-        {Permission.properties_read, Permission.transactions_read}
+        {
+            Permission.properties_read,
+            Permission.transactions_read,
+            Permission.guest_expenses_read,
+        }
     ),
 }
 
@@ -40,6 +48,10 @@ DENIED: dict[Permission, str] = {
     Permission.properties_manage: "Only owners and managers can manage properties.",
     Permission.transactions_read: "You can't view transactions.",
     Permission.transactions_manage: "Only owners and managers can record transactions.",
+    Permission.guest_expenses_read: "You can't view guest expenses.",
+    Permission.guest_expenses_manage: (
+        "Only owners and managers can record guest expenses."
+    ),
 }
 
 

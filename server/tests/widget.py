@@ -9,4 +9,4 @@ class Widget(RecordModel):
 
     __tablename__ = "widgets"
 
-    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)

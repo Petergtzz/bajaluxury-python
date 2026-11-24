@@ -12,6 +12,7 @@ from baja.kit.db.postgres import AsyncReadSession, AsyncSession
 from baja.kit.pagination import ListResource, PaginationParamsQuery
 from baja.models import PaymentMethod, Transaction, TransactionType, User
 from baja.postgres import get_db_read_session, get_db_session
+from baja.property.service import PropertyArchived
 
 from .schemas import (
     PropertyBalance,
@@ -19,7 +20,7 @@ from .schemas import (
     TransactionSchema,
     TransactionUpdate,
 )
-from .service import PropertyArchived, TransactionDeleted
+from .service import TransactionDeleted
 from .service import ledger as ledger_service
 
 router = APIRouter(tags=["ledger"])
@@ -81,7 +82,10 @@ async def create_transaction(
     user: ManageUser,
     session: AsyncSession = Depends(get_db_session),
 ) -> Transaction:
-    return await ledger_service.record(session, user, transaction_create, source="web")
+    transaction, _ = await ledger_service.record(
+        session, user, transaction_create, source="web"
+    )
+    return transaction
 
 
 @router.get(

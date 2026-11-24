@@ -13,6 +13,11 @@ class PropertyNameTaken(Conflict):
         super().__init__("Another property already has this name.")
 
 
+class PropertyArchived(Conflict):
+    def __init__(self) -> None:
+        super().__init__("This property is archived and takes no new entries.")
+
+
 class PropertyService:
     async def list(
         self, session: AsyncReadSession, user: User, *, is_archived: bool | None
@@ -29,6 +34,15 @@ class PropertyService:
         )
         if property is None:
             raise ResourceNotFound()
+        return property
+
+    async def get_open(
+        self, session: AsyncReadSession, user: User, property_id: UUID
+    ) -> Property:
+        """A property that still takes new work: not archived."""
+        property = await self.get(session, user, property_id)
+        if property.is_archived:
+            raise PropertyArchived()
         return property
 
     async def create(

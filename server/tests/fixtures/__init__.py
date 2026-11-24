@@ -14,7 +14,7 @@ from tests.fixtures.database import (
     save_fixture,
     session,
 )
-from tests.fixtures.ledger import create_transaction
+from tests.fixtures.ledger import create_guest_expense, create_transaction
 from tests.fixtures.property import assign_properties, create_property
 from tests.fixtures.redis import redis
 from tests.fixtures.worker import sent_jobs, worker_resources
@@ -28,6 +28,7 @@ __all__ = [
     "company",
     "connection",
     "create_company",
+    "create_guest_expense",
     "create_property",
     "create_transaction",
     "create_user",

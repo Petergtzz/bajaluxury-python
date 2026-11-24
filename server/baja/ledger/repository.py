@@ -59,15 +59,27 @@ class TransactionRepository(RepositoryBase[Transaction]):
             self.get_visible_statement(user).where(Transaction.id == transaction_id)
         )
 
-    async def get_by_external_id(
+    def get_by_external_id_statement(
         self, source: str, external_id: str
-    ) -> Transaction | None:
+    ) -> Select[Transaction]:
         """Deleted ones too: their key stays taken."""
-        return await self.get_one_or_none(
-            select(Transaction).where(
-                Transaction.source == source, Transaction.external_id == external_id
-            )
+        return select(Transaction).where(
+            Transaction.source == source, Transaction.external_id == external_id
         )
+
+    async def list_categories(self, user: User, type: TransactionType) -> list[str]:
+        """The categories in use, most used first."""
+        statement = (
+            select(Transaction.category)
+            .where(
+                Transaction.deleted_at.is_(None),
+                Transaction.type == type,
+                visible_properties(user, Transaction.property_id),
+            )
+            .group_by(Transaction.category)
+            .order_by(func.count().desc(), Transaction.category)
+        )
+        return list((await self.session.execute(statement)).scalars())
 
     async def list_balances(
         self, visible: ColumnElement[bool], *, is_archived: bool | None = None
