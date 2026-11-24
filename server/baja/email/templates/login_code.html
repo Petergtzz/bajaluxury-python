@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Your login code{% endblock %}
+{% block content %}
+<p style="margin:0 0 16px;font-size:16px;line-height:24px;">Enter this code to log in to Baja Luxury:</p>
+<p style="margin:0 0 16px;font-size:32px;font-weight:700;letter-spacing:0.2em;">{{ code }}</p>
+<p style="margin:0;font-size:14px;line-height:20px;color:#78716c;">It expires in {{ minutes }} minutes. If you didn't ask for it, you can ignore this email.</p>
+{% endblock %}
