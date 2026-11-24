@@ -1,10 +1,11 @@
 """Copies the Laravel app's database into this one, as often as you like.
 
 Until the switch-over the Laravel database is the truth: every run makes this
-one match it. Properties are matched by name and transactions by
-`(source, external_id)`, so a second run adds what is new, corrects what was
+one match it. Properties are matched by name, users by email and
+transactions by `(source, external_id)`, so a second run adds what is new, corrects what was
 edited there and removes what was deleted there, and duplicates nothing.
-The Laravel database is only read.
+The Laravel database is only read. Users are never deleted here: one that
+exists only here is listed instead, as it may be someone added in this app.
 
 Ends by comparing each property's balance, derived here, with the one the
 Laravel triggers kept. A difference is a wrong rule or drift in the old table;
@@ -35,11 +36,14 @@ from baja.models import (
     GuestExpense,
     PaymentMethod,
     Property,
+    Role,
     Transaction,
     TransactionType,
+    User,
 )
 from baja.postgres import create_async_engine
 from baja.property.repository import PropertyRepository
+from baja.user.repository import UserRepository
 
 # Laravel's `houses.account_type`, as the rule its balance triggers applied.
 BALANCE_METHODS = {
@@ -49,6 +53,8 @@ BALANCE_METHODS = {
 PAYMENT_METHODS = {method.value: method for method in PaymentMethod} | {
     "visa": PaymentMethod.credit_card
 }
+# Laravel's Spatie roles. Only admins could manage users, which only owners do here.
+ROLES = {"admin": Role.owner, "editor": Role.manager, "viewer": Role.homeowner}
 # Rows Laravel never gave an id are keyed by their old primary key.
 UNKEYED_SOURCE = "legacy"
 # Every source the old system writes. Rows from these are the copy and follow
@@ -67,6 +73,15 @@ class LegacyHouse:
 
 
 @dataclass(frozen=True)
+class LegacyUser:
+    user_id: int
+    email: str | None
+    name: str | None
+    house_id: int | None
+    roles: list[str]
+
+
+@dataclass(frozen=True)
 class LegacyTransaction:
     id: int
     house_id: int
@@ -80,6 +95,7 @@ class LegacyTransaction:
     created_at: dt.datetime | None
     source: str | None = None
     external_id: str | None = None
+    entered_by: int | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +110,7 @@ class LegacyGuestExpense:
     created_at: dt.datetime | None
     source: str | None = None
     external_id: str | None = None
+    entered_by: int | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +120,7 @@ class Legacy:
     balances: dict[int, Decimal]
     """By house: the table the Laravel triggers kept."""
     guest_expenses: list[LegacyGuestExpense] = field(default_factory=list)
+    users: list[LegacyUser] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -118,6 +136,13 @@ class BalanceCheck:
         return self.old == self.new
 
 
+@dataclass(frozen=True)
+class ImportReport:
+    balances: list[BalanceCheck]
+    users_only_here: list[str]
+    """Emails of users this database has and Laravel's doesn't."""
+
+
 class LegacyDataInvalid(Exception):
     def __init__(self, problems: list[str]) -> None:
         super().__init__("\n".join(problems))
@@ -130,13 +155,22 @@ async def read_legacy(dsn: str) -> Legacy:
         houses = await connection.fetch(
             "SELECT house_id, address, account_type, is_active FROM houses"
         )
-        transactions = await _fetch_keyed(
+        users = await connection.fetch(
+            "SELECT u.user_id, u.email, u.name, u.house_id, "
+            "array_remove(array_agg(r.name ORDER BY r.name), NULL) AS roles "
+            "FROM users u "
+            "LEFT JOIN model_has_roles m "
+            "ON m.model_id = u.user_id AND m.model_type = 'App\\Models\\User' "
+            "LEFT JOIN roles r ON r.id = m.role_id "
+            "GROUP BY u.user_id"
+        )
+        transactions = await _fetch(
             connection,
             "transactions",
             "id, house_id, type, amount, payment_method, category, concept, date, "
             "description, created_at",
         )
-        guest_expenses = await _fetch_keyed(
+        guest_expenses = await _fetch(
             connection,
             "guest_expenses",
             "id, house_id, amount, category, concept, date, description, created_at",
@@ -149,34 +183,36 @@ async def read_legacy(dsn: str) -> Legacy:
         transactions=[LegacyTransaction(**row) for row in transactions],
         balances={row["house_id"]: row["balance"] for row in balances},
         guest_expenses=[LegacyGuestExpense(**row) for row in guest_expenses],
+        users=[LegacyUser(**row) for row in users],
     )
 
 
-async def _fetch_keyed(
+async def _fetch(
     connection: asyncpg.Connection, table: str, columns: str
 ) -> list[asyncpg.Record]:
-    """Older Laravel databases predate `source` and `external_id`."""
-    keyed = await connection.fetchval(
-        "SELECT count(*) = 2 FROM information_schema.columns "
-        "WHERE table_name = $1 AND column_name IN ('source', 'external_id')",
+    """Older Laravel databases predate `source`, `external_id` and `entered_by`."""
+    later = await connection.fetch(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = $1 "
+        "AND column_name IN ('source', 'external_id', 'entered_by')",
         table,
     )
-    if keyed:
-        columns += ", source, external_id"
+    columns = ", ".join([columns, *sorted(row["column_name"] for row in later)])
     return list(await connection.fetch(f"SELECT {columns} FROM {table}"))
 
 
-async def import_legacy(session: AsyncSession, legacy: Legacy) -> list[BalanceCheck]:
+async def import_legacy(session: AsyncSession, legacy: Legacy) -> ImportReport:
     properties = await _import_houses(session, legacy.houses)
+    users = await _import_users(session, legacy.users, properties)
     transactions, transaction_problems = _rows(
         "transaction",
         legacy.transactions,
-        lambda transaction: _transaction_row(transaction, properties),
+        lambda transaction: _transaction_row(transaction, properties, users),
     )
     guest_expenses, guest_expense_problems = _rows(
         "guest expense",
         legacy.guest_expenses,
-        lambda guest_expense: _guest_expense_row(guest_expense, properties),
+        lambda guest_expense: _guest_expense_row(guest_expense, properties, users),
     )
     if problems := transaction_problems + guest_expense_problems:
         raise LegacyDataInvalid(problems)
@@ -188,17 +224,25 @@ async def import_legacy(session: AsyncSession, legacy: Legacy) -> list[BalanceCh
             true()
         )
     }
-    return [
-        BalanceCheck(
-            property_name=property.name,
-            old=legacy.balances.get(house_id, Decimal(0)),
-            new=balances[property.id],
-            is_archived=property.is_archived,
-        )
-        for house_id, property in sorted(
-            properties.items(), key=lambda item: item[1].name.lower()
-        )
-    ]
+    imported = {user.id for user in users.values()}
+    return ImportReport(
+        balances=[
+            BalanceCheck(
+                property_name=property.name,
+                old=legacy.balances.get(house_id, Decimal(0)),
+                new=balances[property.id],
+                is_archived=property.is_archived,
+            )
+            for house_id, property in sorted(
+                properties.items(), key=lambda item: item[1].name.lower()
+            )
+        ],
+        users_only_here=[
+            user.email
+            for user in await UserRepository.from_session(session).list_all()
+            if user.id not in imported
+        ],
+    )
 
 
 async def _import_houses(
@@ -230,6 +274,52 @@ async def _import_houses(
             await repository.update(property, values)
         properties[house.house_id] = property
     return properties
+
+
+async def _import_users(
+    session: AsyncSession, users: list[LegacyUser], properties: dict[int, Property]
+) -> dict[int, User]:
+    problems = []
+    emails: dict[str, int] = {}
+    for legacy in users:
+        email = (legacy.email or "").strip().lower()
+        if not email:
+            problems.append(f"user {legacy.user_id}: has no email")
+        elif email in emails:
+            problems.append(
+                f"user {legacy.user_id}: same email as user {emails[email]}"
+            )
+        emails.setdefault(email, legacy.user_id)
+        if len(legacy.roles) != 1 or legacy.roles[0] not in ROLES:
+            problems.append(
+                f"user {legacy.user_id}: roles {legacy.roles} are not one of "
+                f"{', '.join(ROLES)}"
+            )
+        if legacy.house_id is not None and legacy.house_id not in properties:
+            problems.append(f"user {legacy.user_id}: unknown house {legacy.house_id}")
+    if problems:
+        raise LegacyDataInvalid(problems)
+
+    repository = UserRepository.from_session(session)
+    imported: dict[int, User] = {}
+    for legacy_user in users:
+        email = (legacy_user.email or "").strip()
+        role = ROLES[legacy_user.roles[0]]
+        name = (legacy_user.name or "").strip() or None
+        user = await repository.get_by_email(email)
+        if user is None:
+            user = await repository.create(User(email=email, name=name, role=role))
+        else:
+            await repository.update(user, {"role": role, "name": name or user.name})
+        # Owners and managers see every property: only homeowners are assigned.
+        await repository.set_property_ids(
+            user,
+            {properties[legacy_user.house_id].id}
+            if role == Role.homeowner and legacy_user.house_id is not None
+            else set(),
+        )
+        imported[legacy_user.user_id] = user
+    return imported
 
 
 def _rows[L: LegacyTransaction | LegacyGuestExpense](
@@ -294,7 +384,9 @@ async def _mirror(
 
 
 def _transaction_row(
-    transaction: LegacyTransaction, properties: dict[int, Property]
+    transaction: LegacyTransaction,
+    properties: dict[int, Property],
+    users: dict[int, User],
 ) -> dict[str, Any]:
     property = _property(transaction, properties)
     try:
@@ -305,7 +397,7 @@ def _transaction_row(
     if method and method not in PAYMENT_METHODS:
         raise ValueError(f"unknown payment method {transaction.payment_method!r}")
     payment_method = PAYMENT_METHODS[method] if method else None
-    return _common_row(transaction, property) | {
+    return _common_row(transaction, property, users) | {
         "type": type,
         "payment_method": payment_method,
         "affects_balance": affects_balance(property, type, payment_method),
@@ -313,9 +405,11 @@ def _transaction_row(
 
 
 def _guest_expense_row(
-    guest_expense: LegacyGuestExpense, properties: dict[int, Property]
+    guest_expense: LegacyGuestExpense,
+    properties: dict[int, Property],
+    users: dict[int, User],
 ) -> dict[str, Any]:
-    return _common_row(guest_expense, _property(guest_expense, properties))
+    return _common_row(guest_expense, _property(guest_expense, properties), users)
 
 
 def _property(
@@ -327,7 +421,9 @@ def _property(
 
 
 def _common_row(
-    item: LegacyTransaction | LegacyGuestExpense, property: Property
+    item: LegacyTransaction | LegacyGuestExpense,
+    property: Property,
+    users: dict[int, User],
 ) -> dict[str, Any]:
     if item.amount <= 0:
         raise ValueError(f"amount {item.amount} is not positive")
@@ -347,6 +443,9 @@ def _common_row(
         "description": item.description,
         "source": source,
         "external_id": external_id,
+        "entered_by_id": (
+            users[item.entered_by].id if item.entered_by in users else None
+        ),
         "deleted_at": None,
         # Laravel kept UTC without saying so.
         "created_at": (
@@ -365,7 +464,7 @@ async def main(dsn: str, *, dry_run: bool) -> int:
     engine = create_async_engine("script")
     try:
         async with create_async_sessionmaker(engine)() as session:
-            checks = await import_legacy(session, legacy)
+            report = await import_legacy(session, legacy)
             if dry_run:
                 await session.rollback()
             else:
@@ -379,9 +478,10 @@ async def main(dsn: str, *, dry_run: bool) -> int:
 
     print(  # noqa: T201
         f"{len(legacy.houses)} properties, {len(legacy.transactions)} transactions, "
-        f"{len(legacy.guest_expenses)} guest expenses"
+        f"{len(legacy.guest_expenses)} guest expenses, {len(legacy.users)} users"
         + (" (dry run, nothing saved)" if dry_run else "")
     )
+    checks = report.balances
     width = max(len(check.property_name) for check in checks)
     for check in checks:
         print(  # noqa: T201
@@ -392,6 +492,10 @@ async def main(dsn: str, *, dry_run: bool) -> int:
         )
     different = sum(not check.matches and not check.is_archived for check in checks)
     print(f"{different} balance(s) of active properties differ")  # noqa: T201
+    if report.users_only_here:
+        print("Users only in this database, left as they are:")  # noqa: T201
+        for email in report.users_only_here:
+            print(f"  {email}")  # noqa: T201
     return 0
 
 

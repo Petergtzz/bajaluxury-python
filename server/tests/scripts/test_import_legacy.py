@@ -6,7 +6,15 @@ import pytest
 from sqlalchemy import select
 
 from baja.kit.db.postgres import AsyncSession
-from baja.models import GuestExpense, PaymentMethod, Property, Transaction
+from baja.models import (
+    GuestExpense,
+    PaymentMethod,
+    Property,
+    PropertyMember,
+    Role,
+    Transaction,
+    User,
+)
 from scripts.import_legacy import (
     BalanceCheck,
     Legacy,
@@ -14,9 +22,16 @@ from scripts.import_legacy import (
     LegacyGuestExpense,
     LegacyHouse,
     LegacyTransaction,
+    LegacyUser,
     import_legacy,
 )
-from tests.fixtures import SaveFixture, create_property, create_transaction
+from tests.fixtures import (
+    SaveFixture,
+    assign_properties,
+    create_property,
+    create_transaction,
+    create_user,
+)
 
 CAMPO = LegacyHouse(house_id=1, address=" Campo 9 ", account_type="app", is_active=True)
 SOLEIL = LegacyHouse(house_id=40, address="Soleil", account_type="bank", is_active=True)
@@ -104,7 +119,7 @@ async def test_copies_transactions_normalized(session: AsyncSession) -> None:
 
 
 async def test_compares_balances_with_the_old_table(session: AsyncSession) -> None:
-    checks = await import_legacy(session, LEGACY)
+    checks = (await import_legacy(session, LEGACY)).balances
 
     assert checks == [
         BalanceCheck("Campo 9", Decimal("749.50"), Decimal("749.50")),
@@ -193,10 +208,13 @@ async def test_copies_guest_expenses_apart_from_the_ledger(
         ],
     )
 
-    checks = await import_legacy(session, legacy)
-    again = await import_legacy(
-        session, dataclasses.replace(legacy, guest_expenses=legacy.guest_expenses[1:])
-    )
+    checks = (await import_legacy(session, legacy)).balances
+    again = (
+        await import_legacy(
+            session,
+            dataclasses.replace(legacy, guest_expenses=legacy.guest_expenses[1:]),
+        )
+    ).balances
 
     copied = (
         await session.execute(
@@ -223,4 +241,128 @@ async def test_lists_problems_in_both_tables_together(session: AsyncSession) -> 
     assert error.value.problems == [
         "transaction 1: unknown type 'refund'",
         "guest expense 9: has no category",
+    ]
+
+
+def user(
+    user_id: int, role: str, house_id: int | None = None, **changes: object
+) -> LegacyUser:
+    values: dict[str, object] = {
+        "user_id": user_id,
+        "email": f"user{user_id}@example.com",
+        "name": f"User {user_id}",
+        "house_id": house_id,
+        "roles": [role],
+    }
+    return LegacyUser(**(values | changes))  # type: ignore[arg-type]
+
+
+USERS = [
+    user(1, "admin"),
+    user(67, "editor"),
+    user(3, "viewer", house_id=1),
+    user(51, "viewer", house_id=40, name=None),
+]
+
+
+async def people(session: AsyncSession) -> dict[str, tuple[Role, str | None, set[str]]]:
+    users = (
+        await session.execute(select(User).where(User.deleted_at.is_(None)))
+    ).scalars()
+    members = await session.execute(
+        select(PropertyMember.user_id, Property.name)
+        .join(Property, Property.id == PropertyMember.property_id)
+        .where(PropertyMember.deleted_at.is_(None))
+    )
+    assigned: dict[object, set[str]] = {}
+    for user_id, name in members:
+        assigned.setdefault(user_id, set()).add(name)
+    return {u.email: (u.role, u.name, assigned.get(u.id, set())) for u in users}
+
+
+async def test_copies_users_with_their_role_and_villa(session: AsyncSession) -> None:
+    await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
+
+    assert await people(session) == {
+        "user1@example.com": (Role.owner, "User 1", set()),
+        "user67@example.com": (Role.manager, "User 67", set()),
+        "user3@example.com": (Role.homeowner, "User 3", {"Campo 9"}),
+        "user51@example.com": (Role.homeowner, None, {"Soleil"}),
+    }
+
+
+async def test_running_again_follows_role_and_villa_changes(
+    session: AsyncSession,
+) -> None:
+    await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
+    moved = [
+        *USERS[:2],
+        dataclasses.replace(USERS[2], house_id=40, email="USER3@example.com "),
+        dataclasses.replace(USERS[3], roles=["editor"]),
+    ]
+
+    await import_legacy(session, dataclasses.replace(LEGACY, users=moved))
+
+    found = await people(session)
+    assert len(found) == 4
+    assert found["user3@example.com"] == (Role.homeowner, "User 3", {"Soleil"})
+    assert found["user51@example.com"] == (Role.manager, None, set())
+
+
+async def test_matches_existing_users_and_lists_the_others(
+    session: AsyncSession, save_fixture: SaveFixture
+) -> None:
+    campo = await create_property(save_fixture, name="Campo 9")
+    lore = await create_user(
+        save_fixture, Role.homeowner, email="User3@Example.com", name="Lore"
+    )
+    await assign_properties(save_fixture, lore, campo)
+    await create_user(save_fixture, Role.owner, email="new@example.com")
+
+    report = await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
+
+    found = await people(session)
+    assert found["User3@Example.com"] == (Role.homeowner, "User 3", {"Campo 9"})
+    assert "new@example.com" in found
+    assert report.users_only_here == ["new@example.com"]
+
+
+async def test_records_who_entered_each_row(session: AsyncSession) -> None:
+    legacy = dataclasses.replace(
+        LEGACY,
+        users=USERS,
+        transactions=[transaction(1, entered_by=67), transaction(2)],
+    )
+
+    await import_legacy(session, legacy)
+
+    manager = (
+        await session.execute(select(User).where(User.email == "user67@example.com"))
+    ).scalar_one()
+    copied = {t.external_id: t.entered_by_id for t in await transactions(session)}
+    assert copied == {"1": manager.id, "2": None}
+
+
+async def test_refuses_users_it_cannot_map(session: AsyncSession) -> None:
+    broken = dataclasses.replace(
+        LEGACY,
+        users=[
+            user(1, "admin", email=" "),
+            user(2, "superuser"),
+            user(3, "viewer", house_id=99),
+            user(4, "viewer", email="USER5@example.com"),
+            user(5, "viewer"),
+            user(6, "viewer", roles=[]),
+        ],
+    )
+
+    with pytest.raises(LegacyDataInvalid) as error:
+        await import_legacy(session, broken)
+
+    assert error.value.problems == [
+        "user 1: has no email",
+        "user 2: roles ['superuser'] are not one of admin, editor, viewer",
+        "user 3: unknown house 99",
+        "user 5: same email as user 4",
+        "user 6: roles [] are not one of admin, editor, viewer",
     ]
