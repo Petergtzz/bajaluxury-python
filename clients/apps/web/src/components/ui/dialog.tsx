@@ -64,3 +64,12 @@ export function DialogDescription({
     />
   )
 }
+
+export function DialogHeader({ className, ...props }: ComponentProps<'div'>) {
+  return (
+    <div
+      className={cn('flex flex-col gap-2 text-center sm:text-left', className)}
+      {...props}
+    />
+  )
+}

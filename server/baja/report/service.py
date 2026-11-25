@@ -153,6 +153,10 @@ class ReportService:
             user, property_id=property_id
         )
 
+    async def count_failed(self, session: AsyncReadSession) -> int:
+        """Statements that didn't go, waiting on someone to put them right."""
+        return await ReportSendRepository.from_session(session).count_failed()
+
     async def get_send(
         self, session: AsyncReadSession, user: User, send_id: UUID
     ) -> ReportSend:

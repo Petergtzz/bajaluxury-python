@@ -31,10 +31,10 @@ export function getNavSections({ manages }: { manages: boolean }): NavSection[] 
     { title: manages ? 'Balances' : 'Balance', href: '/balances', icon: Scale },
     {
       title: 'Reports',
-      href: '/statement',
+      href: '/reports',
       icon: ChartColumn,
       items: [
-        { title: 'Statement', href: '/statement', icon: FileText },
+        { title: 'Statements', href: '/reports', icon: FileText },
         { title: 'Utilities', href: '/utilities', icon: Gauge },
       ],
     },

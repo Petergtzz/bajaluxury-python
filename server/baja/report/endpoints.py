@@ -13,9 +13,11 @@ from baja.property.service import PropertyArchived
 from baja.statement.endpoints import PDF, download
 
 from .schemas import (
+    FailedStatementCount,
     ReportRecipientSchema,
     ReportSchema,
     ReportSendRequest,
+    ReportSent,
     ReportUpdate,
     SentStatementSchema,
 )
@@ -46,7 +48,6 @@ def _schema(view: ReportView) -> ReportSchema:
                     user_id=r.user_id,
                     email=r.user.email,
                     name=r.user.name,
-                    role=r.user.role,
                     kind=r.kind,
                 )
                 for r in recipients
@@ -113,7 +114,7 @@ async def turn_off_report(
 
 @router.post(
     "/properties/{property_id}/send",
-    response_model=SentStatementSchema,
+    response_model=ReportSent,
     status_code=202,
     responses={
         **Errors,
@@ -127,12 +128,15 @@ async def send_report(
     user: ManageUser,
     request: ReportSendRequest | None = None,
     session: AsyncSession = Depends(get_db_session),
-) -> SentStatementSchema:
+) -> ReportSent:
     """Sends a month's statement now; a month already sent is sent anew."""
     queued = await report_service.send_now(
         session, user, property_id, request.month if request else None
     )
-    return _sent(await report_service.get_send(session, user, queued.id))
+    return ReportSent(
+        month=queued.month,
+        recipient_count=len(queued.to_addresses) + len(queued.cc_addresses),
+    )
 
 
 @router.get("/sends/", response_model=list[SentStatementSchema], responses=Errors)
@@ -148,6 +152,14 @@ async def list_sent_statements(
             session, user, property_id=property_id
         )
     ]
+
+
+@router.get("/sends/count", response_model=FailedStatementCount, responses=Errors)
+async def count_failed_statements(
+    user: ManageUser, session: AsyncReadSession = Depends(get_db_read_session)
+) -> FailedStatementCount:
+    """How many statements didn't go, for the count beside Reports."""
+    return FailedStatementCount(count=await report_service.count_failed(session))
 
 
 @router.get(

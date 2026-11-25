@@ -26,7 +26,7 @@ import {
   UTILITIES_PERIODS,
   type UtilitiesFilters,
   type UtilityView,
-} from '@/lib/reports/filters'
+} from '@/lib/utilities/filters'
 import { cn } from '@/lib/utils'
 
 import { Downloads } from './downloads'

@@ -169,7 +169,7 @@ export function GuestExpenseDialog({
                     <RowSelect
                       label="Property"
                       value={field.value}
-                      onChange={field.onChange}
+                      onValueChange={field.onChange}
                     >
                       {(guestExpense ? properties : active).map((p) => (
                         <SelectItem key={p.id} value={p.id}>

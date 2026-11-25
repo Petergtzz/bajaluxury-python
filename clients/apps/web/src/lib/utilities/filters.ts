@@ -7,10 +7,6 @@ import {
 } from '@/lib/period'
 
 /** A report covers finished stretches: a month, the year, or days of one's own. */
-export const STATEMENT_PERIODS: PeriodChoice = {
-  fallback: 'last-month',
-  allowed: ['this-month', 'last-month', 'this-year', 'custom'],
-}
 export const UTILITIES_PERIODS: PeriodChoice = {
   fallback: 'this-year',
   allowed: ['this-month', 'last-month', 'this-year', 'custom'],
@@ -22,30 +18,14 @@ export type Currency = (typeof CURRENCIES)[number]
 export const UTILITY_VIEWS = ['totals', 'tracker'] as const
 export type UtilityView = (typeof UTILITY_VIEWS)[number]
 
-export type StatementFilters = PeriodFilter & {
+export type UtilitiesFilters = PeriodFilter & {
   property: string
   currency: Currency | ''
+  view: UtilityView
 }
-export type UtilitiesFilters = StatementFilters & { view: UtilityView }
 
 const oneOf = <T extends string>(value: string | null, allowed: readonly T[]): T | '' =>
   allowed.includes(value as T) ? (value as T) : ''
-
-export function parseStatementFilters(params: URLSearchParams): StatementFilters {
-  return {
-    ...readPeriod(params, STATEMENT_PERIODS),
-    property: params.get('property') ?? '',
-    currency: oneOf(params.get('currency'), CURRENCIES),
-  }
-}
-
-export function serializeStatementFilters(filters: StatementFilters): string {
-  const params = new URLSearchParams()
-  writePeriod(params, filters, STATEMENT_PERIODS)
-  if (filters.property) params.set('property', filters.property)
-  if (filters.currency) params.set('currency', filters.currency)
-  return params.toString()
-}
 
 export function parseUtilitiesFilters(params: URLSearchParams): UtilitiesFilters {
   return {

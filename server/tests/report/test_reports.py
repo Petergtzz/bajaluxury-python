@@ -158,6 +158,7 @@ async def test_homeowners_set_up_nothing(
     await login(await lore(save_fixture, campo))
 
     assert (await client.get("/v1/reports/properties/")).status_code == 403
+    assert (await client.get("/v1/reports/sends/count")).status_code == 403
     response = await client.post(f"/v1/reports/properties/{campo.id}/send", json={})
     assert response.status_code == 403
 
@@ -185,17 +186,19 @@ async def test_sending_now_queues_last_month_and_again_replaces_it(
     )
 
     assert off.status_code == 409
-    assert first.status_code == 202
-    body = first.json()
-    assert (body["month"], body["status"], body["to"], body["cc"]) == (
-        "2026-11-01",
+    assert (first.status_code, first.json()) == (
+        202,
+        {"month": "2026-11-01", "recipient_count": 2},
+    )
+    assert again.json() == first.json()
+    assert future.status_code == 422
+    [send] = (await client.get("/v1/reports/sends/")).json()
+    assert (send["status"], send["to"], send["cc"]) == (
         "queued",
         ["lore@example.com"],
         [user.email],
     )
-    assert again.json()["id"] == body["id"]
-    assert future.status_code == 422
-    assert sent_jobs == [("report.send", (body["id"],))] * 2
+    assert sent_jobs == [("report.send", (send["id"],))] * 2
 
 
 async def test_the_job_sends_and_keeps_the_statement(
@@ -217,7 +220,8 @@ async def test_the_job_sends_and_keeps_the_statement(
     await login(user)
     clock(noon(2026, 12, 9))
     await set_up(client, campo, (owner, "to"), (user, "cc"))
-    send = (await client.post(f"/v1/reports/properties/{campo.id}/send")).json()
+    await client.post(f"/v1/reports/properties/{campo.id}/send")
+    [send] = (await client.get("/v1/reports/sends/")).json()
 
     await tasks.send_report(send["id"])
     await tasks.send_report(send["id"])
@@ -261,11 +265,13 @@ async def test_an_address_refused_fails_the_send_with_why(
     await login(user)
     clock(noon(2026, 12, 9))
     await set_up(client, campo, (user, "to"))
-    send = (await client.post(f"/v1/reports/properties/{campo.id}/send")).json()
+    await client.post(f"/v1/reports/properties/{campo.id}/send")
+    [send] = (await client.get("/v1/reports/sends/")).json()
 
     await tasks.send_report(send["id"])
 
     [history] = (await client.get("/v1/reports/sends/")).json()
+    assert (await client.get("/v1/reports/sends/count")).json() == {"count": 1}
     assert (history["status"], history["has_statement"], history["error"]) == (
         "failed",
         False,
@@ -320,7 +326,12 @@ async def test_homeowners_read_their_own_history(
     await set_up(client, campo, (owner, "to"))
     await set_up(client, colinas, (user, "to"))
     await client.post(f"/v1/reports/properties/{campo.id}/send")
-    other = (await client.post(f"/v1/reports/properties/{colinas.id}/send")).json()
+    await client.post(f"/v1/reports/properties/{colinas.id}/send")
+    other = next(
+        s
+        for s in (await client.get("/v1/reports/sends/")).json()
+        if s["property_name"] == "Colinas 21"
+    )
     await login(owner)
 
     history = (await client.get("/v1/reports/sends/")).json()

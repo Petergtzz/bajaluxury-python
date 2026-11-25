@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from baja.models import RecipientKind, Role, SendStatus
+from baja.models import RecipientKind, SendStatus
 
 DEFAULT_SEND_DAY = 2
 
@@ -12,7 +12,6 @@ class ReportRecipientSchema(BaseModel):
     user_id: UUID
     email: str
     name: str | None
-    role: Role
     kind: RecipientKind = Field(description="Addressed to them, or copied to them.")
 
 
@@ -61,6 +60,13 @@ class ReportSendRequest(BaseModel):
     )
 
 
+class ReportSent(BaseModel):
+    """What a send now set off."""
+
+    month: dt.date = Field(description="First day of the month the email covers.")
+    recipient_count: int = Field(description="How many people it was queued for.")
+
+
 class SentStatementSchema(BaseModel):
     """One property's statement for one month, and what became of it."""
 
@@ -76,3 +82,7 @@ class SentStatementSchema(BaseModel):
     has_statement: bool = Field(
         description="Whether the PDF it sent can be downloaded."
     )
+
+
+class FailedStatementCount(BaseModel):
+    count: int = Field(description="How many statements didn't go.")

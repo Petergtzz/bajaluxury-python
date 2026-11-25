@@ -3,7 +3,13 @@
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 
-import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 /**
@@ -46,12 +52,26 @@ export function AmountField({
   )
 }
 
-/** Fields as rows on one grey card, a hairline between each. */
+/** The tint the dialog's panels share with the page's summary card. */
+export const TINT = 'bg-neutral-50 dark:bg-neutral-800/50'
+
+/** The tinted card a group of fields sits in. */
+export function Panel({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return <div className={cn(TINT, 'rounded-2xl px-5 py-2', className)}>{children}</div>
+}
+
+/** Fields as rows on one tinted card, a hairline between each. */
 export function FieldRows({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col divide-y divide-neutral-200/70 rounded-2xl bg-neutral-50 px-5 dark:divide-neutral-700/60 dark:bg-neutral-800/50">
+    <Panel className="flex flex-col divide-y divide-neutral-200/70 py-0 dark:divide-neutral-700/60">
       {children}
-    </div>
+    </Panel>
   )
 }
 
@@ -94,14 +114,14 @@ export function RowInput({ className, ...props }: ComponentProps<'input'>) {
 export function RowSelect({
   label,
   value,
-  onChange,
+  onValueChange,
   placeholder,
   disabled,
   children,
 }: {
   label: string
   value: string
-  onChange: (value: string) => void
+  onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
   children: ReactNode
@@ -111,7 +131,7 @@ export function RowSelect({
       value={value}
       // Radix announces an empty value while a form resets; a choice is never
       // unmade from here, so that is ignored.
-      onValueChange={(next) => next && onChange(next)}
+      onValueChange={(next) => next && onValueChange(next)}
       disabled={disabled}
     >
       <SelectTrigger
@@ -127,3 +147,5 @@ export function RowSelect({
     </Select>
   )
 }
+
+export { SelectItem }

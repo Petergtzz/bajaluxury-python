@@ -113,6 +113,14 @@ class ReportSendRepository(RepositoryBase[ReportSend]):
             .where(ReportSend.id == send_id)
         )
 
+    async def count_failed(self) -> int:
+        count = await self.session.scalar(
+            select(func.count()).where(
+                ReportSend.deleted_at.is_(None), ReportSend.status == SendStatus.failed
+            )
+        )
+        return count or 0
+
     async def last_sent(self) -> dict[UUID, dt.datetime]:
         result = await self.session.execute(
             select(ReportSend.property_id, func.max(ReportSend.sent_at))

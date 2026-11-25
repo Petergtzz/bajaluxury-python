@@ -546,6 +546,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reports/properties/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reports
+         * @description Every active property and what it sends, by name.
+         */
+        get: operations["list_reports_v1_reports_properties__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/properties/{property_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Report
+         * @description Who receives the property's monthly statement, and on which day.
+         */
+        put: operations["set_report_v1_reports_properties__property_id__put"];
+        post?: never;
+        /** Turn Off Report */
+        delete: operations["turn_off_report_v1_reports_properties__property_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/properties/{property_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Report
+         * @description Sends a month's statement now; a month already sent is sent anew.
+         */
+        post: operations["send_report_v1_reports_properties__property_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/sends/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sent Statements
+         * @description What went out, newest month first: a homeowner's own properties only.
+         */
+        get: operations["list_sent_statements_v1_reports_sends__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/sends/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count Failed Statements
+         * @description How many statements didn't go, for the count beside Reports.
+         */
+        get: operations["count_failed_statements_v1_reports_sends_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/sends/{send_id}/statement.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sent Statement
+         * @description The statement exactly as it was sent, not one made again from today's ledger.
+         */
+        get: operations["get_sent_statement_v1_reports_sends__send_id__statement_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/utilities": {
         parameters: {
             query?: never;
@@ -988,6 +1109,14 @@ export interface components {
              */
             error: "EmailTaken";
         };
+        /** FailedStatementCount */
+        FailedStatementCount: {
+            /**
+             * Count
+             * @description How many statements didn't go.
+             */
+            count: number;
+        };
         /** GuestExpenseCreate */
         GuestExpenseCreate: {
             /** Amount */
@@ -1341,11 +1470,6 @@ export interface components {
              * @description Only for homeowners.
              */
             property_ids?: string[];
-            /**
-             * Receives Monthly Report
-             * @default false
-             */
-            receives_monthly_report?: boolean;
             role: components["schemas"]["Role"];
         };
         /** ManagedUserSchema */
@@ -1367,11 +1491,6 @@ export interface components {
              * @description The properties a homeowner sees. Empty for owners and managers.
              */
             property_ids: string[];
-            /**
-             * Receives Monthly Report
-             * @description Emailed their properties' statements each month. Homeowners.
-             */
-            receives_monthly_report: boolean;
             role: components["schemas"]["Role"];
         };
         /** ManagedUserUpdate */
@@ -1385,8 +1504,6 @@ export interface components {
              * @description Replaces the assignments. Only for homeowners.
              */
             property_ids?: string[] | null;
-            /** Receives Monthly Report */
-            receives_monthly_report?: boolean | null;
             role?: components["schemas"]["Role"] | null;
         };
         /** MethodTotal */
@@ -1394,6 +1511,20 @@ export interface components {
             payment_method: components["schemas"]["PaymentMethod"] | null;
             /** Total */
             total: number;
+        };
+        /** MonthNotOver */
+        MonthNotOver: {
+            /**
+             * Detail
+             * @description Message for people, may change.
+             */
+            detail: string;
+            /**
+             * Error
+             * @description Stable error code to branch on in code.
+             * @constant
+             */
+            error: "MonthNotOver";
         };
         /** NotPermitted */
         NotPermitted: {
@@ -1546,6 +1677,34 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /**
+         * RecipientKind
+         * @enum {string}
+         */
+        RecipientKind: "to" | "cc";
+        /** RecipientUpdate */
+        RecipientUpdate: {
+            kind: components["schemas"]["RecipientKind"];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** RecipientsInvalid */
+        RecipientsInvalid: {
+            /**
+             * Detail
+             * @description Message for people, may change.
+             */
+            detail: string;
+            /**
+             * Error
+             * @description Stable error code to branch on in code.
+             * @constant
+             */
+            error: "RecipientsInvalid";
+        };
         /** RecurringChargeCreate */
         RecurringChargeCreate: {
             /** Amount */
@@ -1627,6 +1786,95 @@ export interface components {
             description?: string | null;
             payment_method?: components["schemas"]["PaymentMethod"] | null;
         };
+        /** ReportIsOff */
+        ReportIsOff: {
+            /**
+             * Detail
+             * @description Message for people, may change.
+             */
+            detail: string;
+            /**
+             * Error
+             * @description Stable error code to branch on in code.
+             * @constant
+             */
+            error: "ReportIsOff";
+        };
+        /** ReportRecipientSchema */
+        ReportRecipientSchema: {
+            /** Email */
+            email: string;
+            /** @description Addressed to them, or copied to them. */
+            kind: components["schemas"]["RecipientKind"];
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * ReportSchema
+         * @description A property and the monthly statement it sends. Every active property has
+         *     one, sending or not: no recipients is what "off" is.
+         */
+        ReportSchema: {
+            /** Last Sent At */
+            last_sent_at: string | null;
+            /**
+             * Property Id
+             * Format: uuid
+             */
+            property_id: string;
+            /** Property Name */
+            property_name: string;
+            /** Recipients */
+            recipients: components["schemas"]["ReportRecipientSchema"][];
+            /**
+             * Send Day
+             * @description Day of the month it goes out, in the month after the one it covers.
+             */
+            send_day: number;
+        };
+        /** ReportSendRequest */
+        ReportSendRequest: {
+            /**
+             * Month
+             * @description Any day of the month to send; the last whole month if left out.
+             */
+            month?: string | null;
+        };
+        /**
+         * ReportSent
+         * @description What a send now set off.
+         */
+        ReportSent: {
+            /**
+             * Month
+             * Format: date
+             * @description First day of the month the email covers.
+             */
+            month: string;
+            /**
+             * Recipient Count
+             * @description How many people it was queued for.
+             */
+            recipient_count: number;
+        };
+        /** ReportUpdate */
+        ReportUpdate: {
+            /**
+             * Recipients
+             * @description Replaces who receives it. Each must be able to see the property, and at least one is `to`. Turn a report off by deleting it.
+             */
+            recipients: components["schemas"]["RecipientUpdate"][];
+            /**
+             * Send Day
+             * @default 2
+             */
+            send_day?: number;
+        };
         /** ResourceNotFound */
         ResourceNotFound: {
             /**
@@ -1646,6 +1894,52 @@ export interface components {
          * @enum {string}
          */
         Role: "owner" | "manager" | "homeowner";
+        /**
+         * SendStatus
+         * @enum {string}
+         */
+        SendStatus: "queued" | "sent" | "failed";
+        /**
+         * SentStatementSchema
+         * @description One property's statement for one month, and what became of it.
+         */
+        SentStatementSchema: {
+            /** Cc */
+            cc: string[];
+            /**
+             * Error
+             * @description Why it didn't go, when it didn't.
+             */
+            error: string | null;
+            /**
+             * Has Statement
+             * @description Whether the PDF it sent can be downloaded.
+             */
+            has_statement: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Month
+             * Format: date
+             * @description Its first day.
+             */
+            month: string;
+            /**
+             * Property Id
+             * Format: uuid
+             */
+            property_id: string;
+            /** Property Name */
+            property_name: string;
+            /** Sent At */
+            sent_at: string | null;
+            status: components["schemas"]["SendStatus"];
+            /** To */
+            to: string[];
+        };
         /**
          * ShortcutConfirmation
          * @description The phone's notification after saving.
@@ -4364,6 +4658,387 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BucketSchema"][];
+                };
+            };
+        };
+    };
+    list_reports_v1_reports_properties__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSchema"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+        };
+    };
+    set_report_v1_reports_properties__property_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotFound"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyArchived"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipientsInvalid"];
+                };
+            };
+        };
+    };
+    turn_off_report_v1_reports_properties__property_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotFound"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_report_v1_reports_properties__property_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReportSendRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSent"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotFound"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportIsOff"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthNotOver"];
+                };
+            };
+        };
+    };
+    list_sent_statements_v1_reports_sends__get: {
+        parameters: {
+            query?: {
+                property_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SentStatementSchema"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    count_failed_statements_v1_reports_sends_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FailedStatementCount"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+        };
+    };
+    get_sent_statement_v1_reports_sends__send_id__statement_pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                send_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotFound"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -88,11 +88,27 @@ export function RowMark({
   )
 }
 
-/** What the rows under it are: a day, "5 properties". */
-export function ListHeading({ children }: { children: ReactNode }) {
+/**
+ * A row's quiet line: a coloured dot, then what it says. On, off or under way:
+ * one size and three colours rather than class strings that have to agree.
+ */
+export function StatusMeta({
+  tone,
+  children,
+}: {
+  tone: 'on' | 'off' | 'busy'
+  children: ReactNode
+}) {
   return (
-    <h2 className="border-b border-border pb-3 text-sm text-muted-foreground">
-      {children}
-    </h2>
+    <>
+      <span className={cn('size-2 shrink-0 rounded-full', DOT[tone])} aria-hidden />
+      <span className="truncate">{children}</span>
+    </>
   )
+}
+
+const DOT = {
+  on: 'bg-emerald-600 dark:bg-emerald-500',
+  off: 'bg-neutral-300 dark:bg-neutral-600',
+  busy: 'bg-amber-500',
 }

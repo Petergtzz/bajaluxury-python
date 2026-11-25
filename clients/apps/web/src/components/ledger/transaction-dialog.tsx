@@ -176,7 +176,7 @@ export function TransactionDialog({
                   <RowSelect
                     label="Type"
                     value={field.value}
-                    onChange={field.onChange}
+                    onValueChange={field.onChange}
                     disabled={readOnly}
                   >
                     {(['expense', 'income'] as const).map((type) => (
@@ -209,7 +209,7 @@ export function TransactionDialog({
                     <RowSelect
                       label="Property"
                       value={field.value}
-                      onChange={field.onChange}
+                      onValueChange={field.onChange}
                     >
                       {(transaction ? properties : open_).map((p) => (
                         <SelectItem key={p.id} value={p.id}>
@@ -249,7 +249,7 @@ export function TransactionDialog({
                   <RowSelect
                     label="Paid with"
                     value={field.value}
-                    onChange={field.onChange}
+                    onValueChange={field.onChange}
                     placeholder="Not recorded"
                     disabled={readOnly}
                   >
