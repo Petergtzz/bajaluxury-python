@@ -90,18 +90,29 @@ class LedgerService:
         lost the response can safely send the same entry again. Says whether
         it recorded a new one.
         """
-        repository = TransactionRepository.from_session(session)
-        external_id = transaction_create.external_id or str(generate_uuid())
-        existing = repository.get_by_external_id_statement(source, external_id)
-        if (found := await repository.get_one_or_none(existing)) is not None:
-            return self._replayed(found), False
-
         property = await property_service.get_open(
             session, user, transaction_create.property_id
         )
+        return await self.record_for(
+            session, property, transaction_create, source=source, entered_by=user
+        )
+
+    async def record_for(
+        self,
+        session: AsyncSession,
+        property: Property,
+        transaction_create: TransactionCreate,
+        *,
+        source: str,
+        entered_by: User | None,
+    ) -> tuple[Transaction, bool]:
+        """`record`, for a property the caller already checked, by anyone or nobody."""
+        repository = TransactionRepository.from_session(session)
+        external_id = transaction_create.external_id or str(generate_uuid())
         transaction, created = await repository.create_once(
             Transaction(
-                **transaction_create.model_dump(exclude={"external_id"}),
+                **transaction_create.model_dump(exclude={"external_id", "property_id"}),
+                property_id=property.id,
                 source=source,
                 external_id=external_id,
                 affects_balance=affects_balance(
@@ -109,9 +120,9 @@ class LedgerService:
                     transaction_create.type,
                     transaction_create.payment_method,
                 ),
-                entered_by_id=user.id,
+                entered_by_id=entered_by.id if entered_by else None,
             ),
-            existing,
+            repository.get_by_external_id_statement(source, external_id),
         )
         return self._replayed(transaction), created
 

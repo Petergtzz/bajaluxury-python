@@ -6,6 +6,7 @@ from .guest_expense import GuestExpense
 from .login_code import LoginCode
 from .property import Property
 from .property_member import PropertyMember
+from .recurring_charge import RecurringCharge
 from .transaction import PaymentMethod, Transaction, TransactionType
 from .user import Role, User
 from .user_session import UserSession
@@ -21,6 +22,7 @@ __all__ = [
     "Property",
     "PropertyMember",
     "RecordModel",
+    "RecurringCharge",
     "Role",
     "Transaction",
     "TransactionType",

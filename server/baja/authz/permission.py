@@ -14,6 +14,7 @@ class Permission(StrEnum):
     transactions_manage = "transactions:manage"
     guest_expenses_read = "guest_expenses:read"
     guest_expenses_manage = "guest_expenses:manage"
+    recurring_charges_manage = "recurring_charges:manage"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -28,6 +29,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.transactions_manage,
             Permission.guest_expenses_read,
             Permission.guest_expenses_manage,
+            Permission.recurring_charges_manage,
         }
     ),
     Role.homeowner: frozenset(
@@ -51,6 +53,9 @@ DENIED: dict[Permission, str] = {
     Permission.guest_expenses_read: "You can't view guest expenses.",
     Permission.guest_expenses_manage: (
         "Only owners and managers can record guest expenses."
+    ),
+    Permission.recurring_charges_manage: (
+        "Only owners and managers can manage recurring charges."
     ),
 }
 

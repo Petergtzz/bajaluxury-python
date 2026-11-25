@@ -5,22 +5,27 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
+import baja.company.service
 from baja.kit.db.postgres import AsyncSession
 from baja.models import (
+    Company,
     GuestExpense,
     PaymentMethod,
     Property,
     PropertyMember,
+    RecurringCharge,
     Role,
     Transaction,
     User,
 )
 from scripts.import_legacy import (
+    RECURRING_CHARGES,
     BalanceCheck,
     Legacy,
     LegacyDataInvalid,
     LegacyGuestExpense,
     LegacyHouse,
+    LegacyRecurringCharge,
     LegacyTransaction,
     LegacyUser,
     import_legacy,
@@ -366,3 +371,91 @@ async def test_refuses_users_it_cannot_map(session: AsyncSession) -> None:
         "user 5: same email as user 4",
         "user 6: roles [] are not one of admin, editor, viewer",
     ]
+
+
+CHARGES = [
+    LegacyRecurringCharge(
+        1,
+        Decimal(8500),
+        PaymentMethod.cash,
+        "staff",
+        "property management",
+        "monthly property management fee",
+        10,
+    ),
+    LegacyRecurringCharge(
+        40,
+        Decimal(1305),
+        PaymentMethod.credit_card,
+        "utilities",
+        "starlink",
+        "monthly fee",
+        15,
+    ),
+]
+
+
+async def test_copies_recurring_charges_starting_after_the_import(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = dt.datetime(2026, 11, 25, 18, tzinfo=dt.UTC)
+    monkeypatch.setattr(baja.company.service, "utc_now", lambda: now)
+    await import_legacy(session, dataclasses.replace(LEGACY, recurring_charges=CHARGES))
+    now = dt.datetime(2026, 12, 3, 18, tzinfo=dt.UTC)
+    raised = dataclasses.replace(CHARGES[0], amount=Decimal(9000))
+
+    await import_legacy(
+        session, dataclasses.replace(LEGACY, recurring_charges=[raised, CHARGES[1]])
+    )
+
+    charges = (
+        await session.execute(
+            select(RecurringCharge, Property.name)
+            .join(Property, Property.id == RecurringCharge.property_id)
+            .order_by(Property.name)
+        )
+    ).all()
+    assert [
+        (name, c.amount, c.concept, c.day_of_month, c.charged_through)
+        for c, name in charges
+    ] == [
+        (
+            "Campo 9",
+            Decimal("9000.00"),
+            "property management",
+            10,
+            dt.date(2026, 12, 3),
+        ),
+        ("Soleil", Decimal("1305.00"), "starlink", 15, dt.date(2026, 12, 3)),
+    ]
+
+
+async def test_sets_up_the_company_laravel_hard_coded(session: AsyncSession) -> None:
+    await import_legacy(session, LEGACY)
+    await import_legacy(session, LEGACY)
+
+    [company] = (await session.execute(select(Company))).scalars()
+    assert (company.timezone, company.currency, company.usd_exchange_rate) == (
+        "America/Mazatlan",
+        "MXN",
+        Decimal("17.0000"),
+    )
+
+
+async def test_refuses_charges_for_unknown_houses(session: AsyncSession) -> None:
+    unknown = dataclasses.replace(CHARGES[0], house_id=99)
+
+    with pytest.raises(LegacyDataInvalid) as error:
+        await import_legacy(
+            session, dataclasses.replace(LEGACY, recurring_charges=[unknown])
+        )
+
+    assert error.value.problems == [
+        "recurring charge 'property management': unknown house 99"
+    ]
+
+
+def test_the_charge_table_has_every_laravel_command_charge() -> None:
+    assert len(RECURRING_CHARGES) == 60
+    assert {c.day_of_month for c in RECURRING_CHARGES} == {10, 15, 31}
+    assert all(c.amount > 0 for c in RECURRING_CHARGES)

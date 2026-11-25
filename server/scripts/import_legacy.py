@@ -28,14 +28,18 @@ import asyncpg
 from sqlalchemy import or_, select, true, update
 from sqlalchemy.dialects.postgresql import insert
 
+from baja.company.service import today as company_today
 from baja.kit.db.postgres import AsyncSession, create_async_sessionmaker
 from baja.kit.utils import generate_uuid, utc_now
 from baja.ledger.repository import TransactionRepository
 from baja.ledger.service import affects_balance
 from baja.models import (
+    Company,
+    Currency,
     GuestExpense,
     PaymentMethod,
     Property,
+    RecurringCharge,
     Role,
     Transaction,
     TransactionType,
@@ -43,6 +47,7 @@ from baja.models import (
 )
 from baja.postgres import create_async_engine
 from baja.property.repository import PropertyRepository
+from baja.recurring.repository import RecurringChargeRepository
 from baja.user.repository import UserRepository
 
 # Laravel's `houses.account_type`, as the rule its balance triggers applied.
@@ -62,6 +67,138 @@ UNKEYED_SOURCE = "legacy"
 # Shortcut's: until the switch-over its entries go to the old system.
 LEGACY_SOURCES = {UNKEYED_SOURCE, "laravel", "reminders", "shortcut"}
 BATCH = 1000
+
+# What Laravel hard-coded, as it has no company table.
+COMPANY = {
+    "name": "Baja Luxury Management",
+    "currency": Currency.MXN,
+    "timezone": "America/Mazatlan",
+    "usd_exchange_rate": Decimal("17.0"),
+}
+
+
+@dataclass(frozen=True)
+class LegacyRecurringCharge:
+    """One of Laravel's `add:recurring-*` commands, for one house."""
+
+    house_id: int
+    amount: Decimal
+    payment_method: PaymentMethod
+    category: str
+    concept: str
+    description: str
+    day_of_month: int
+
+
+def _charges(
+    day: int,
+    method: PaymentMethod,
+    category: str,
+    concept: str,
+    description: str,
+    amounts: dict[int, int],
+) -> list[LegacyRecurringCharge]:
+    return [
+        LegacyRecurringCharge(
+            house, Decimal(amount), method, category, concept, description, day
+        )
+        for house, amount in amounts.items()
+    ]
+
+
+CASH, CARD = PaymentMethod.cash, PaymentMethod.credit_card
+LAST = 31
+# Copied from app/Console/Commands/Recurring*.php, by house_id. Their comments
+# name some houses wrongly (41 is Canadas 3): the import uses the real address.
+RECURRING_CHARGES = [
+    *_charges(
+        10,
+        CASH,
+        "staff",
+        "property management",
+        "monthly property management fee",
+        {
+            1: 8500,
+            2: 8500,
+            3: 10000,
+            4: 8500,
+            5: 10000,
+            6: 8500,
+            7: 8500,
+            8: 8500,
+            9: 10000,
+            10: 10000,
+            11: 8500,
+            12: 10000,
+            13: 30000,
+            14: 10000,
+            16: 8500,
+            17: 8500,
+            18: 12000,
+            19: 8500,
+            20: 8500,
+            21: 12000,
+            23: 8000,
+            24: 8500,
+            25: 24000,
+            26: 10000,
+            28: 10000,
+            29: 10000,
+            30: 20000,
+            31: 8500,
+            32: 10000,
+            33: 13000,
+            34: 10000,
+            35: 10000,
+            36: 10000,
+            38: 8000,
+            39: 20000,
+            41: 10000,
+            42: 19000,
+            43: 10000,
+            44: 10000,
+            45: 10000,
+        },
+    ),
+    *_charges(
+        15,
+        CASH,
+        "utilities",
+        "landscaping",
+        "monthly landscaping service",
+        {
+            2: 7000,
+            13: 8000,
+            16: 1800,
+            20: 7000,
+            25: 16000,
+            32: 12000,
+            39: 7000,
+            44: 8000,
+            45: 8000,
+        },
+    ),
+    *_charges(15, CASH, "housekeeping", "housekeeping", "1/2 mari payment", {10: 7500}),
+    *_charges(
+        LAST, CASH, "housekeeping", "housekeeping", "2/2 mari payment", {10: 7500}
+    ),
+    *_charges(
+        15, CASH, "housekeeping", "housekeeping", "1/2 gaby pay roll", {19: 17500}
+    ),
+    *_charges(
+        LAST, CASH, "housekeeping", "housekeeping", "2/2 gaby pay roll", {19: 17500}
+    ),
+    *_charges(15, CASH, "staff", "staff", "1/2 payment enrique and karen", {33: 26800}),
+    *_charges(
+        LAST, CASH, "staff", "staff", "2/2 payment enrique and karen", {33: 26800}
+    ),
+    *_charges(15, CASH, "staff", "staff", "miguel monthly payment", {4: 1000, 9: 1000}),
+    *_charges(15, CARD, "utilities", "starlink", "monthly fee", {13: 1305}),
+    *_charges(15, CASH, "staff", "staff", "supervise house construction", {30: 16000}),
+    *_charges(
+        LAST, CASH, "utilities", "landscaping", "sandrita monthly payment", {30: 19500}
+    ),
+]
 
 
 @dataclass(frozen=True)
@@ -121,6 +258,7 @@ class Legacy:
     """By house: the table the Laravel triggers kept."""
     guest_expenses: list[LegacyGuestExpense] = field(default_factory=list)
     users: list[LegacyUser] = field(default_factory=list)
+    recurring_charges: list[LegacyRecurringCharge] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -184,6 +322,7 @@ async def read_legacy(dsn: str) -> Legacy:
         balances={row["house_id"]: row["balance"] for row in balances},
         guest_expenses=[LegacyGuestExpense(**row) for row in guest_expenses],
         users=[LegacyUser(**row) for row in users],
+        recurring_charges=RECURRING_CHARGES,
     )
 
 
@@ -202,8 +341,10 @@ async def _fetch(
 
 
 async def import_legacy(session: AsyncSession, legacy: Legacy) -> ImportReport:
+    await _ensure_company(session)
     properties = await _import_houses(session, legacy.houses)
     users = await _import_users(session, legacy.users, properties)
+    await _import_recurring_charges(session, legacy.recurring_charges, properties)
     transactions, transaction_problems = _rows(
         "transaction",
         legacy.transactions,
@@ -274,6 +415,61 @@ async def _import_houses(
             await repository.update(property, values)
         properties[house.house_id] = property
     return properties
+
+
+async def _ensure_company(session: AsyncSession) -> None:
+    if (await session.execute(select(Company))).scalar_one_or_none() is None:
+        session.add(Company(**COMPANY))
+        await session.flush()
+
+
+async def _import_recurring_charges(
+    session: AsyncSession,
+    charges: list[LegacyRecurringCharge],
+    properties: dict[int, Property],
+) -> None:
+    """
+    Laravel charges them until the switch-over, so each import moves them to
+    start tomorrow: the last import before it hands them over.
+    """
+    if problems := [
+        f"recurring charge {charge.concept!r}: unknown house {charge.house_id}"
+        for charge in charges
+        if charge.house_id not in properties
+    ]:
+        raise LegacyDataInvalid(problems)
+    today = await company_today(session)
+    repository = RecurringChargeRepository.from_session(session)
+    existing = {
+        (c.property_id, c.concept, c.description, c.day_of_month): c
+        for c in await repository.list_all()
+    }
+    for legacy_charge in charges:
+        property = properties[legacy_charge.house_id]
+        values = {
+            "amount": legacy_charge.amount,
+            "payment_method": legacy_charge.payment_method,
+            "category": legacy_charge.category,
+            "charged_through": today,
+        }
+        key = (
+            property.id,
+            legacy_charge.concept,
+            legacy_charge.description,
+            legacy_charge.day_of_month,
+        )
+        if (charge := existing.get(key)) is not None:
+            await repository.update(charge, values)
+        else:
+            await repository.create(
+                RecurringCharge(
+                    property=property,
+                    concept=legacy_charge.concept,
+                    description=legacy_charge.description,
+                    day_of_month=legacy_charge.day_of_month,
+                    **values,
+                )
+            )
 
 
 async def _import_users(
@@ -478,7 +674,8 @@ async def main(dsn: str, *, dry_run: bool) -> int:
 
     print(  # noqa: T201
         f"{len(legacy.houses)} properties, {len(legacy.transactions)} transactions, "
-        f"{len(legacy.guest_expenses)} guest expenses, {len(legacy.users)} users"
+        f"{len(legacy.guest_expenses)} guest expenses, {len(legacy.users)} users, "
+        f"{len(legacy.recurring_charges)} recurring charges"
         + (" (dry run, nothing saved)" if dry_run else "")
     )
     checks = report.balances
