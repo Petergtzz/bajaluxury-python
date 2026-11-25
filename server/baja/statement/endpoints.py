@@ -69,7 +69,7 @@ async def statement_pdf(
     content = render_statement_pdf(
         statement, company=company.name, generated=await company_today(session)
     )
-    return _download(content, PDF, _filename(statement, "pdf"))
+    return download(content, PDF, _filename(statement, "pdf"))
 
 
 @router.get(
@@ -82,10 +82,10 @@ async def statement_excel(
 ) -> Response:
     company = await get_company(session)
     content = render_statement_excel(statement, company=company.name)
-    return _download(content, XLSX, _filename(statement, "xlsx"))
+    return download(content, XLSX, _filename(statement, "xlsx"))
 
 
-def _download(content: bytes, media_type: str, filename: str) -> Response:
+def download(content: bytes, media_type: str, filename: str) -> Response:
     return Response(
         content,
         media_type=media_type,

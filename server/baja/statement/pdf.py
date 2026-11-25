@@ -1,25 +1,24 @@
 import datetime as dt
 from decimal import Decimal
 
-from fpdf.enums import Align, TableBordersLayout
-from fpdf.fonts import FontFace
-
 from baja.kit.paper import (
     BODY,
-    BOLD,
     CAPTION,
     FIGURE,
     GREEN,
     INK,
-    LOGO,
     MEDIUM,
     MUTED,
     RED,
     SHADE,
-    TITLE,
+    Letterhead,
     Paper,
     money,
+    period,
+    print_twice,
     sentence,
+    shade,
+    table_options,
 )
 from baja.models import TransactionType
 
@@ -30,74 +29,30 @@ from .schemas import Statement
 COLUMNS = (68, 0, 88, 62, 62, 62, 68)
 
 
-class StatementPaper(Paper):
-    def __init__(
-        self,
-        statement: Statement,
-        *,
-        company: str,
-        generated: dt.date,
-        pages: int | None,
-    ) -> None:
-        super().__init__(f"{statement.property_name} statement")
-        self.statement = statement
-        self.company = company
-        self.generated = generated
-        self.page_total = pages
-
-    def footer(self) -> None:
-        self.set_y(-self.b_margin + 8)
-        self.style(CAPTION, color=MUTED)
-        self.cell(
-            0,
-            CAPTION,
-            f"{self.statement.property_name} · {_period(self.statement)}",
-            align=Align.L,
-        )
-        self.set_x(self.l_margin)
-        total = f" of {self.page_total}" if self.page_total else ""
-        self.cell(0, CAPTION, f"Page {self.page_no()}{total}", align=Align.R)
-
-
 def render_statement_pdf(
     statement: Statement, *, company: str, generated: dt.date
 ) -> bytes:
-    # Laid out twice: the first time to learn how many pages "of N" is, as
-    # fpdf2's page count alias is measured before it is filled in.
-    pages = None
-    for _ in range(2):
-        pdf = StatementPaper(
-            statement, company=company, generated=generated, pages=pages
-        )
+    letterhead = Letterhead(
+        company=company,
+        kind="Statement",
+        title=statement.property_name,
+        subtitle=period(statement.start, statement.end),
+        generated=generated,
+    )
+
+    def lay_out(page_total: int | None) -> Paper:
+        pdf = Paper(letterhead, page_total=page_total)
         pdf.add_page()
-        _head(pdf)
-        _summary(pdf)
-        _entries(pdf)
-        pages = pdf.pages_count
-    return bytes(pdf.output())
+        pdf.head()
+        _summary(pdf, statement)
+        _entries(pdf, statement)
+        return pdf
+
+    return print_twice(lay_out)
 
 
-def _head(pdf: StatementPaper) -> None:
-    top = pdf.get_y()
-    pdf.image(str(LOGO), x=pdf.l_margin, y=top - 4, h=48)
-    pdf.set_xy(pdf.l_margin + 52, top)
-    pdf.style(CAPTION, color=MUTED)
-    pdf.cell(0, CAPTION + 2, f"{pdf.company} · Statement")
-    pdf.set_xy(pdf.l_margin + 52, top + 12)
-    pdf.style(TITLE, BOLD)
-    pdf.cell(0, TITLE + 4, pdf.statement.property_name)
-    pdf.set_xy(pdf.l_margin + 52, top + 33)
-    pdf.style(BODY, color=MUTED)
-    pdf.cell(0, BODY + 2, _period(pdf.statement))
-    pdf.set_xy(pdf.l_margin, top)
-    pdf.style(CAPTION, color=MUTED)
-    pdf.cell(0, CAPTION + 2, f"Generated {pdf.generated:%b %-d, %Y}", align=Align.R)
-    pdf.set_y(top + 64)
-
-
-def _summary(pdf: StatementPaper) -> None:
+def _summary(pdf: Paper, statement: Statement) -> None:
     """The balance's story in four figures: where it started, what moved it."""
-    statement = pdf.statement
     figures = (
         ("Previous balance", statement.opening_balance, True),
         ("Income", statement.income_total, False),
@@ -128,29 +83,22 @@ def _summary(pdf: StatementPaper) -> None:
     pdf.ln(6)
 
 
-def _entries(pdf: StatementPaper) -> None:
-    statement = pdf.statement
+def _entries(pdf: Paper, statement: Statement) -> None:
     pdf.style(BODY)
     if not statement.entries:
         pdf.style(BODY, color=MUTED)
         pdf.cell(0, BODY + 4, "Nothing was recorded in this period.")
         return
-    head = FontFace(family="Plex", emphasis="BOLD", size_pt=CAPTION, color=MUTED)
     with pdf.table(
         col_widths=_widths(pdf.content_width),
         text_align=("LEFT", "LEFT", "LEFT", "LEFT", "RIGHT", "RIGHT", "RIGHT"),
-        headings_style=head,
-        borders_layout=TableBordersLayout.HORIZONTAL_LINES,
-        line_height=BODY + 3,
-        padding=(4, 3, 4, 3),
-        repeat_headings=1,
-        first_row_as_headings=True,
+        **table_options(),
     ) as table:
         table.row(
             ["Date", "Description", "Concept", "Method", "Expense", "Income", "Balance"]
         )
-        for entry in statement.entries:
-            row = table.row()
+        for index, entry in enumerate(statement.entries):
+            row = table.row(style=shade(index))
             row.cell(f"{entry.date:%b %-d, %Y}")
             row.cell(sentence(entry.description))
             row.cell(sentence(entry.concept))
@@ -164,26 +112,23 @@ def _entries(pdf: StatementPaper) -> None:
             # Only the rows that moved the balance carry its colour.
             row.cell(
                 money(entry.balance_after),
-                style=FontFace(
+                style=shade(
+                    index,
                     color=(
                         _sign_color(entry.balance_after)
                         if entry.affects_balance
                         else MUTED
-                    )
+                    ),
                 ),
             )
-        total = FontFace(family="Plex", emphasis="BOLD", size_pt=BODY)
-        row = table.row(style=total)
+        last = len(statement.entries)
+        row = table.row(style=shade(last, bold=True))
         row.cell("Total", colspan=4)
         row.cell(money(statement.expense_total))
         row.cell(money(statement.income_total))
         row.cell(
             money(statement.closing_balance),
-            style=FontFace(
-                family="Plex",
-                emphasis="BOLD",
-                color=_sign_color(statement.closing_balance),
-            ),
+            style=shade(last, color=_sign_color(statement.closing_balance), bold=True),
         )
 
 
@@ -194,7 +139,3 @@ def _widths(content_width: float) -> tuple[float, ...]:
 
 def _sign_color(amount: Decimal) -> tuple[int, int, int]:
     return RED if amount < 0 else GREEN
-
-
-def _period(statement: Statement) -> str:
-    return f"{statement.start:%b %-d, %Y} – {statement.end:%b %-d, %Y}"

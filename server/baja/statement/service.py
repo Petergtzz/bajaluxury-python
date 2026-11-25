@@ -36,7 +36,7 @@ async def build_statement(
     property = await property_service.get(session, user, property_id)
     company = await get_company(session)
     currency = currency or company.currency
-    convert = _converter(company.currency, currency, company.usd_exchange_rate)
+    convert = converter(company.currency, currency, company.usd_exchange_rate)
 
     repository = TransactionRepository.from_session(session)
     opening = convert(await repository.get_balance_before(property.id, start))
@@ -106,7 +106,7 @@ async def build_statement(
     )
 
 
-def _converter(
+def converter(
     company_currency: Currency, currency: Currency, usd_rate: Decimal
 ) -> Callable[[Decimal], Decimal]:
     """From the company's currency to `currency`, to the cent."""
