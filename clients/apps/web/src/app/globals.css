@@ -1,0 +1,140 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* A soft glow around a panel rather than a shadow cast below it. */
+  --shadow-md: 0 0px 15px rgba(0 0 0 / 0.04), 0 0px 2px rgba(0 0 0 / 0.06);
+  --shadow-lg: 0 0px 20px rgba(0 0 0 / 0.04), 0 0px 5px rgba(0 0 0 / 0.06);
+  --shadow-xl: 0 0px 30px rgba(0 0 0 / 0.04), 0 0px 10px rgba(0 0 0 / 0.06);
+  /*
+   * The accent: focus rings, selection and counts that wait on someone.
+   * A desert sand, from the logo's sun; everything else is the neutral scale.
+   */
+  --color-brand: #e2c59a;
+  --color-brand-foreground: #0e191d;
+  /* Neutrals: Tailwind's lightness steps in one cool near-black's hue. */
+  --color-neutral-50: oklch(0.985 0.0003 222.7);
+  --color-neutral-100: oklch(0.97 0.0007 222.7);
+  --color-neutral-200: oklch(0.922 0.0017 222.7);
+  --color-neutral-300: oklch(0.87 0.0029 222.7);
+  --color-neutral-400: oklch(0.708 0.0065 222.7);
+  --color-neutral-500: oklch(0.556 0.0099 222.7);
+  --color-neutral-600: oklch(0.439 0.0125 222.7);
+  --color-neutral-700: oklch(0.371 0.014 222.7);
+  --color-neutral-800: oklch(0.269 0.0163 222.7);
+  --color-neutral-900: #0e191d;
+  --color-neutral-950: oklch(0.145 0.019 222.7);
+  --font-sans:
+    var(--font-manrope), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji';
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: var(--color-neutral-900);
+  --card: #ffffff;
+  --card-foreground: var(--color-neutral-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-neutral-900);
+  --primary: var(--color-neutral-900);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-neutral-100);
+  --secondary-foreground: var(--color-neutral-900);
+  --muted: var(--color-neutral-100);
+  --muted-foreground: var(--color-neutral-500);
+  --accent: var(--color-neutral-100);
+  --accent-foreground: var(--color-neutral-900);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: var(--color-neutral-200);
+  --input: var(--color-neutral-200);
+  --ring: var(--color-brand);
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: var(--color-neutral-900);
+  --foreground: #ffffff;
+  --card: var(--color-neutral-900);
+  --card-foreground: #ffffff;
+  --popover: var(--color-neutral-900);
+  --popover-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: var(--color-neutral-900);
+  --secondary: var(--color-neutral-800);
+  --secondary-foreground: #ffffff;
+  --muted: var(--color-neutral-800);
+  --muted-foreground: var(--color-neutral-400);
+  --accent: var(--color-neutral-800);
+  --accent-foreground: #ffffff;
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: var(--color-neutral-800);
+  --input: var(--color-neutral-800);
+  --ring: var(--color-brand);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scrollbar-gutter: stable;
+  }
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  ::selection {
+    background-color: var(--color-brand);
+    color: var(--color-brand-foreground);
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}
+
+/* The dark --destructive is a background red; as text it needs the lighter one. */
+.dark .text-destructive {
+  color: var(--destructive-foreground);
+}
+
+/* A row of chips that scrolls sideways on a phone without a bar showing. */
+.no-scrollbar {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

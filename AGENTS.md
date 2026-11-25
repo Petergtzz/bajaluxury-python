@@ -2,7 +2,7 @@
 
 Property management for Baja Luxury's homes: managers record income and expenses (also from an Apple Shortcut), homeowners read the ledgers of their own properties. One company, no tenancy.
 
-This repository holds the FastAPI backend (`server/`) and, later, the Next.js dashboard (`clients/apps/web`). It is written fresh. `~/Documents/projects/doorstep-python` and Polar are references for patterns only: read them to see how something is done, never copy their files.
+This repository holds the FastAPI backend (`server/`) and the Next.js dashboard (`clients/apps/web`, see its `AGENTS.md`). It is written fresh. `~/Documents/projects/doorstep-python` and Polar are references for patterns only: read them to see how something is done, never copy their files.
 
 ## Rules
 

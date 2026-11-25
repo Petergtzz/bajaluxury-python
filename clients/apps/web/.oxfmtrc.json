@@ -1,0 +1,6 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 90,
+  "ignorePatterns": ["src/lib/api/v1.ts", "AGENTS.md"]
+}
