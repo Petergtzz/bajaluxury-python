@@ -169,6 +169,23 @@ describe('Reports, the properties tab', () => {
     expect(body?.month).toMatch(/^\d{4}-\d{2}-01$/)
   })
 
+  it('offers no property to send while none is set up', async () => {
+    stubRoutes({ [REPORTS]: list([OFF]) })
+    renderSignedIn(<Reports />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Send report' }))
+
+    // An empty list would open onto nothing: the row is held, and says why.
+    const property = await screen.findByLabelText('Property')
+    expect(property).toHaveProperty('disabled', true)
+    expect(property.textContent).toContain('None set up')
+    expect(
+      screen.getByText(
+        'No property is set up to report yet. Choose who receives one first.',
+      ),
+    ).toBeTruthy()
+  })
+
   it('reports why a send was refused', async () => {
     stubRoutes({
       [REPORTS]: list([ON]),

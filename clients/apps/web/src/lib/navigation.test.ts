@@ -16,7 +16,8 @@ it('names the balances page for who reads it', () => {
   expect(titles(false)).toContain('Balance')
 })
 
-it('gathers the reports under one section', () => {
+it('makes Reports one page, with nothing folded under it', () => {
   const reports = getNavSections({ manages: false }).find((s) => s.title === 'Reports')
-  expect(reports?.items?.map((item) => item.href)).toEqual(['/reports', '/utilities'])
+  expect(reports?.href).toBe('/reports')
+  expect(reports?.items).toBeUndefined()
 })

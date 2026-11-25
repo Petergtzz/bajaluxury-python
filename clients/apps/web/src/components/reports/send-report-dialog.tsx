@@ -70,8 +70,9 @@ export function SendReportDialog({
             label="Property"
             value={propertyId}
             onValueChange={(value) => setPropertyId(chosen(value))}
-            placeholder="Select"
-            disabled={send.isPending}
+            placeholder={sendable.length === 0 ? 'None set up' : 'Select'}
+            // An empty list would open onto nothing; the line below says why.
+            disabled={send.isPending || sendable.length === 0}
           >
             {sendable.map((one) => (
               <SelectItem key={one.property_id} value={one.property_id}>

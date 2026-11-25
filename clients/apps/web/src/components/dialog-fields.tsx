@@ -63,13 +63,13 @@ export function Panel({
   children: ReactNode
   className?: string
 }) {
-  return <div className={cn(TINT, 'rounded-2xl px-5 py-2', className)}>{children}</div>
+  return <div className={cn(TINT, 'rounded-xl px-5 py-2', className)}>{children}</div>
 }
 
 /** Fields as rows on one tinted card, a hairline between each. */
 export function FieldRows({ children }: { children: ReactNode }) {
   return (
-    <Panel className="flex flex-col divide-y divide-neutral-200/70 py-0 dark:divide-neutral-700/60">
+    <Panel className="divide-y divide-neutral-200/80 py-0 dark:divide-neutral-800">
       {children}
     </Panel>
   )
@@ -78,9 +78,11 @@ export function FieldRows({ children }: { children: ReactNode }) {
 /** A row: what it is on the left, its value on the right. */
 export function FieldRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex min-h-12 items-center justify-between gap-4 text-[15px]">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="flex min-w-0 flex-1 justify-end text-right font-medium">
+    <label className="flex min-h-12 items-center justify-between gap-4 py-2.5">
+      <span className="shrink-0 text-[15px] leading-6 text-muted-foreground">
+        {label}
+      </span>
+      <span className="flex min-w-0 flex-1 items-center justify-end text-right text-[15px]">
         {children}
       </span>
     </label>
@@ -107,7 +109,18 @@ export function RowDateInput({ className, ...props }: ComponentProps<'input'>) {
 
 /** Text typed straight into its row. */
 export function RowInput({ className, ...props }: ComponentProps<'input'>) {
-  return <input className={cn(VALUE, className)} {...props} />
+  return (
+    <input
+      // Chrome keeps room for a suggestion arrow on an input with a list, even
+      // hidden, which pulled its value off the edge every other row ends on.
+      className={cn(
+        VALUE,
+        '[&::-webkit-calendar-picker-indicator]:m-0 [&::-webkit-calendar-picker-indicator]:w-0 [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-0',
+        className,
+      )}
+      {...props}
+    />
+  )
 }
 
 /** A choice made from a list, its value at the row's end with a chevron. */
@@ -136,12 +149,14 @@ export function RowSelect({
     >
       <SelectTrigger
         aria-label={label}
-        className="h-auto w-auto max-w-full gap-1.5 border-0 px-0 py-0 font-medium shadow-none focus-visible:ring-0 [&>svg:last-child]:hidden"
+        // The trigger's own size variant (data-[size=default]:h-9) outranks
+        // `h-auto`, which would make select rows taller than the input rows.
+        className="h-auto w-auto min-w-0 justify-end gap-2 border-0 bg-transparent p-0 text-[15px] shadow-none focus-visible:ring-0 data-[placeholder]:text-muted-foreground data-[size=default]:h-auto dark:bg-transparent [&>svg:last-child]:hidden"
       >
         <SelectValue placeholder={placeholder ?? 'Select'} />
-        {!disabled && <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </SelectTrigger>
-      <SelectContent align="end" className="min-w-48">
+      <SelectContent align="end" className="max-h-72">
         {children}
       </SelectContent>
     </Select>

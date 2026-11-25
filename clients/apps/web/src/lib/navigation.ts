@@ -1,8 +1,6 @@
 import {
   ArrowLeftRight,
-  ChartColumn,
   FileText,
-  Gauge,
   type LucideIcon,
   ReceiptText,
   Scale,
@@ -29,14 +27,6 @@ export function getNavSections({ manages }: { manages: boolean }): NavSection[] 
       ],
     },
     { title: manages ? 'Balances' : 'Balance', href: '/balances', icon: Scale },
-    {
-      title: 'Reports',
-      href: '/reports',
-      icon: ChartColumn,
-      items: [
-        { title: 'Statements', href: '/reports', icon: FileText },
-        { title: 'Utilities', href: '/utilities', icon: Gauge },
-      ],
-    },
+    { title: 'Reports', href: '/reports', icon: FileText },
   ]
 }

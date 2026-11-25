@@ -1,40 +1,7 @@
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api, unwrap } from '@/lib/api/client'
 import type { RecipientKind } from '@/lib/api/types'
-import type { Currency } from '@/lib/utilities/filters'
-
-export type UtilitiesQuery = {
-  start: string
-  end: string
-  property_id?: string
-  currency?: Currency
-  buckets?: string[]
-}
-
-export function useUtilities(query: UtilitiesQuery, enabled = true) {
-  return useQuery({
-    queryKey: ['reports', 'utilities', query],
-    queryFn: () => unwrap(api.GET('/v1/reports/utilities', { params: { query } })),
-    enabled,
-    placeholderData: keepPreviousData,
-  })
-}
-
-/** Every kind of bill a report can show, in the order a concept is sorted into them. */
-export function useBuckets() {
-  return useQuery({
-    queryKey: ['reports', 'buckets'],
-    queryFn: () => unwrap(api.GET('/v1/reports/buckets')),
-    staleTime: Infinity,
-  })
-}
-
 export const reportKeys = {
   all: () => ['reports', 'properties'] as const,
   sends: () => ['reports', 'sends'] as const,
