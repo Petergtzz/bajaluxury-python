@@ -1,4 +1,5 @@
 import datetime as dt
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Select, and_, case, func, select
@@ -14,6 +15,12 @@ from baja.models import (
 )
 
 from .schemas import PropertyBalance
+
+# Income adds to a balance, an expense takes from it.
+SIGNED_AMOUNT = case(
+    (Transaction.type == TransactionType.income, Transaction.amount),
+    else_=-Transaction.amount,
+)
 
 
 class TransactionRepository(RepositoryBase[Transaction]):
@@ -67,6 +74,32 @@ class TransactionRepository(RepositoryBase[Transaction]):
             Transaction.source == source, Transaction.external_id == external_id
         )
 
+    async def get_balance_before(self, property_id: UUID, day: dt.date) -> Decimal:
+        """The property's balance at the start of `day`."""
+        balance = await self.session.scalar(
+            select(func.coalesce(func.sum(SIGNED_AMOUNT), 0)).where(
+                Transaction.property_id == property_id,
+                Transaction.deleted_at.is_(None),
+                Transaction.affects_balance,
+                Transaction.date < day,
+            )
+        )
+        return Decimal(balance or 0)
+
+    async def list_between(
+        self, property_id: UUID, start: dt.date, end: dt.date
+    ) -> list[Transaction]:
+        """In the order they happened, as far as the ledger knows it."""
+        return await self.get_all(
+            self.get_base_statement()
+            .where(
+                Transaction.property_id == property_id,
+                Transaction.date >= start,
+                Transaction.date <= end,
+            )
+            .order_by(Transaction.date, Transaction.created_at, Transaction.id)
+        )
+
     async def list_categories(self, user: User, type: TransactionType) -> list[str]:
         """The categories in use, most used first."""
         statement = (
@@ -84,12 +117,8 @@ class TransactionRepository(RepositoryBase[Transaction]):
     async def list_balances(
         self, visible: ColumnElement[bool], *, is_archived: bool | None = None
     ) -> list[PropertyBalance]:
-        signed = case(
-            (Transaction.type == TransactionType.income, Transaction.amount),
-            else_=-Transaction.amount,
-        )
         balance = func.coalesce(
-            func.sum(signed).filter(Transaction.affects_balance), 0
+            func.sum(SIGNED_AMOUNT).filter(Transaction.affects_balance), 0
         ).label("balance")
         statement = (
             select(

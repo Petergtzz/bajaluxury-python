@@ -7,6 +7,7 @@ from baja.login_code.endpoints import router as login_code_router
 from baja.property.endpoints import router as property_router
 from baja.recurring.endpoints import router as recurring_router
 from baja.shortcut.endpoints import router as shortcut_router
+from baja.statement.endpoints import router as statement_router
 from baja.user.endpoints import router as user_router
 
 router = APIRouter(prefix="/v1")
@@ -17,4 +18,5 @@ router.include_router(login_code_router)
 router.include_router(property_router)
 router.include_router(recurring_router)
 router.include_router(shortcut_router)
+router.include_router(statement_router)
 router.include_router(user_router)
