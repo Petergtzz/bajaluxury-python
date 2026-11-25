@@ -22,7 +22,7 @@ source ../venv/bin/activate
 pip install -e . --group dev   # after changing dependencies
 cp .env.example .env           # first time; set BAJA_POSTGRES_USER
 task db_migrate                # apply migrations
-task api                       # http://127.0.0.1:8000
+task api                       # http://127.0.0.1:8100
 task worker                    # background jobs (emails)
 task scheduler                 # the clock: recurring charges, hourly
 task import_legacy <dsn>       # copy the Laravel database in (re-runnable, --dry-run)

@@ -53,8 +53,8 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_PASSWORD: str = ""
 
-    BASE_URL: str = "http://127.0.0.1:8000"
-    FRONTEND_BASE_URL: str = "http://127.0.0.1:3000"
+    BASE_URL: str = "http://127.0.0.1:8100"
+    FRONTEND_BASE_URL: str = "http://127.0.0.1:3100"
 
     USER_SESSION_TTL: timedelta = timedelta(days=31)
     USER_SESSION_COOKIE_KEY: str = "baja_session"

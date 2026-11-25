@@ -17,7 +17,7 @@ The dashboard for the API in `../../../server`. It looks like Doorstep's (`~/Doc
 Run from this directory (`pnpm install` first).
 
 ```
-pnpm run dev            # http://127.0.0.1:3000, API expected on :8000 (BAJA_API_URL)
+pnpm run dev            # http://127.0.0.1:3100, API expected on :8100 (BAJA_API_URL)
 pnpm run generate       # src/lib/api/v1.ts from the API, after any API change
 pnpm run lint && pnpm run typecheck && pnpm run test
 pnpm run format

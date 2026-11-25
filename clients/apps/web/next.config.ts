@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next'
 
-const apiUrl = process.env.BAJA_API_URL ?? 'http://127.0.0.1:8000'
+const apiUrl = process.env.BAJA_API_URL ?? 'http://127.0.0.1:8100'
 
 /** Nothing frames the dashboard or redirects where its forms post. */
 const securityHeaders = [

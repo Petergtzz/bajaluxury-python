@@ -46,7 +46,7 @@ build-backend = "setuptools.build_meta"
 include = ["baja*"]
 
 [tool.taskipy.tasks]
-api = { cmd = "uvicorn baja.app:app --reload --host 127.0.0.1 --port 8000", help = "run the API" }
+api = { cmd = "uvicorn baja.app:app --reload --host 127.0.0.1 --port 8100", help = "run the API" }
 worker = { cmd = "dramatiq --processes 1 --threads 1 --watch baja baja.worker.run", help = "run the background worker" }
 scheduler = { cmd = "python -m baja.scheduler", help = "run the clock: recurring charges" }
 db_migrate = { cmd = "alembic upgrade head", help = "apply database migrations" }
