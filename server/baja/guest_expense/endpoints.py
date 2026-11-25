@@ -13,7 +13,13 @@ from baja.models import GuestExpense, User
 from baja.postgres import get_db_read_session, get_db_session
 from baja.property.service import PropertyArchived
 
-from .schemas import GuestExpenseCreate, GuestExpenseSchema, GuestExpenseUpdate
+from .schemas import (
+    GuestExpenseCreate,
+    GuestExpenseFilters,
+    GuestExpenseSchema,
+    GuestExpenseSummary,
+    GuestExpenseUpdate,
+)
 from .service import GuestExpenseDeleted
 from .service import guest_expense as guest_expense_service
 
@@ -32,10 +38,7 @@ Refused: dict[int | str, dict[str, Any]] = {
 }
 
 
-@router.get("/", response_model=ListResource[GuestExpenseSchema], responses=Errors)
-async def list_guest_expenses(
-    user: ReadUser,
-    pagination: PaginationParamsQuery,
+def get_filters(
     property_id: UUID | None = None,
     category: str | None = Query(None, description="Ignoring case."),
     start_date: dt.date | None = Query(None, description="From this day on."),
@@ -43,24 +46,45 @@ async def list_guest_expenses(
     invoiced: bool | None = Query(
         None, description="Only billed (`true`) or not yet billed (`false`) ones."
     ),
-    session: AsyncReadSession = Depends(get_db_read_session),
-) -> ListResource[GuestExpenseSchema]:
-    """Newest first, from the properties the caller may see."""
-    guest_expenses, count = await guest_expense_service.list(
-        session,
-        user,
-        pagination=pagination,
+) -> GuestExpenseFilters:
+    return GuestExpenseFilters(
         property_id=property_id,
         category=category,
         start_date=start_date,
         end_date=end_date,
         invoiced=invoiced,
     )
+
+
+FiltersQuery = Annotated[GuestExpenseFilters, Depends(get_filters)]
+
+
+@router.get("/", response_model=ListResource[GuestExpenseSchema], responses=Errors)
+async def list_guest_expenses(
+    user: ReadUser,
+    filters: FiltersQuery,
+    pagination: PaginationParamsQuery,
+    session: AsyncReadSession = Depends(get_db_read_session),
+) -> ListResource[GuestExpenseSchema]:
+    """Newest first, from the properties the caller may see."""
+    guest_expenses, count = await guest_expense_service.list(
+        session, user, filters, pagination=pagination
+    )
     return ListResource.from_paginated_results(
         [GuestExpenseSchema.model_validate(g) for g in guest_expenses],
         count,
         pagination,
     )
+
+
+@router.get("/summary", response_model=GuestExpenseSummary, responses=Errors)
+async def summarize_guest_expenses(
+    user: ReadUser,
+    filters: FiltersQuery,
+    session: AsyncReadSession = Depends(get_db_read_session),
+) -> GuestExpenseSummary:
+    """What the same filters list, counted and added up across every page."""
+    return await guest_expense_service.summarize(session, user, filters)
 
 
 @router.post(

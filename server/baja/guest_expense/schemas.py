@@ -1,4 +1,5 @@
 import datetime as dt
+from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -54,3 +55,22 @@ class GuestExpenseUpdate(BaseModel):
     concept: str | None = Field(default=None, min_length=1, max_length=255)
     date: dt.date | None = None
     description: str | None = Field(default=None, max_length=2000)
+
+
+@dataclass(frozen=True)
+class GuestExpenseFilters:
+    """What narrows a list of guest expenses; nothing set lists them all."""
+
+    property_id: UUID | None = None
+    category: str | None = None
+    start_date: dt.date | None = None
+    end_date: dt.date | None = None
+    invoiced: bool | None = None
+
+
+class GuestExpenseSummary(BaseModel):
+    """What the listed guest expenses add up to, across every page."""
+
+    count: int
+    total: Money
+    billed_total: Money = Field(description="The part an invoice already bills.")

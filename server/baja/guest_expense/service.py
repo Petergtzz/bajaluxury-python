@@ -1,4 +1,3 @@
-import datetime as dt
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -10,7 +9,12 @@ from baja.models import GuestExpense, User
 from baja.property.service import property as property_service
 
 from .repository import GuestExpenseRepository
-from .schemas import GuestExpenseCreate, GuestExpenseUpdate
+from .schemas import (
+    GuestExpenseCreate,
+    GuestExpenseFilters,
+    GuestExpenseSummary,
+    GuestExpenseUpdate,
+)
 
 
 class GuestExpenseDeleted(Conflict):
@@ -23,23 +27,21 @@ class GuestExpenseService:
         self,
         session: AsyncReadSession,
         user: User,
+        filters: GuestExpenseFilters,
         *,
         pagination: PaginationParams,
-        property_id: UUID | None = None,
-        category: str | None = None,
-        start_date: dt.date | None = None,
-        end_date: dt.date | None = None,
-        invoiced: bool | None = None,
     ) -> tuple[Sequence[GuestExpense], int]:
         statement = GuestExpenseRepository.from_session(session).get_list_statement(
-            user,
-            property_id=property_id,
-            category=category,
-            start_date=start_date,
-            end_date=end_date,
-            invoiced=invoiced,
+            user, filters
         )
         return await paginate(session, statement, pagination=pagination)
+
+    async def summarize(
+        self, session: AsyncReadSession, user: User, filters: GuestExpenseFilters
+    ) -> GuestExpenseSummary:
+        """What `list` would list, added up across its pages."""
+        repository = GuestExpenseRepository.from_session(session)
+        return await repository.summarize(repository.get_list_statement(user, filters))
 
     async def get(
         self, session: AsyncReadSession, user: User, guest_expense_id: UUID

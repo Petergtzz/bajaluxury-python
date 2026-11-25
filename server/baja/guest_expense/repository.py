@@ -1,4 +1,3 @@
-import datetime as dt
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
@@ -6,6 +5,8 @@ from sqlalchemy import Select, func, select
 from baja.authz.filters import visible_properties
 from baja.kit.repository import RepositoryBase
 from baja.models import GuestExpense, User
+
+from .schemas import GuestExpenseFilters, GuestExpenseSummary
 
 
 class GuestExpenseRepository(RepositoryBase[GuestExpense]):
@@ -17,32 +18,44 @@ class GuestExpenseRepository(RepositoryBase[GuestExpense]):
         )
 
     def get_list_statement(
-        self,
-        user: User,
-        *,
-        property_id: UUID | None = None,
-        category: str | None = None,
-        start_date: dt.date | None = None,
-        end_date: dt.date | None = None,
-        invoiced: bool | None = None,
+        self, user: User, filters: GuestExpenseFilters
     ) -> Select[GuestExpense]:
         statement = self.get_visible_statement(user).order_by(
             GuestExpense.date.desc(), GuestExpense.created_at.desc()
         )
-        if property_id is not None:
-            statement = statement.where(GuestExpense.property_id == property_id)
-        if category is not None:
+        if filters.property_id is not None:
+            statement = statement.where(GuestExpense.property_id == filters.property_id)
+        if filters.category is not None:
             statement = statement.where(
-                func.lower(GuestExpense.category) == category.lower()
+                func.lower(GuestExpense.category) == filters.category.lower()
             )
-        if start_date is not None:
-            statement = statement.where(GuestExpense.date >= start_date)
-        if end_date is not None:
-            statement = statement.where(GuestExpense.date <= end_date)
-        if invoiced is not None:
+        if filters.start_date is not None:
+            statement = statement.where(GuestExpense.date >= filters.start_date)
+        if filters.end_date is not None:
+            statement = statement.where(GuestExpense.date <= filters.end_date)
+        if filters.invoiced is not None:
             billed = GuestExpense.invoice_id.is_not(None)  # type: ignore[attr-defined]
-            statement = statement.where(billed if invoiced else ~billed)
+            statement = statement.where(billed if filters.invoiced else ~billed)
         return statement
+
+    async def summarize(self, statement: Select[GuestExpense]) -> GuestExpenseSummary:
+        """Counts and sums what `statement` lists, and what of it is billed."""
+        listed = statement.order_by(None).subquery()
+        count, total, billed = (
+            await self.session.execute(
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(listed.c.amount), 0),
+                    func.coalesce(
+                        func.sum(listed.c.amount).filter(
+                            listed.c.invoice_id.is_not(None)
+                        ),
+                        0,
+                    ),
+                )
+            )
+        ).one()
+        return GuestExpenseSummary(count=count, total=total, billed_total=billed)
 
     async def get_visible(
         self, user: User, guest_expense_id: UUID

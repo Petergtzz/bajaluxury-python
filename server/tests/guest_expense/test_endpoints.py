@@ -3,7 +3,7 @@ import datetime as dt
 import pytest
 from httpx import AsyncClient
 
-from baja.models import Role, User
+from baja.models import Company, Role, User
 from tests.fixtures import (
     LoginFixture,
     SaveFixture,
@@ -174,3 +174,49 @@ async def test_moving_to_an_archived_property_is_refused(
     )
 
     assert response.status_code == 409
+
+
+async def test_the_summary_adds_up_and_says_what_is_billed(
+    client: AsyncClient,
+    login: LoginFixture,
+    user: User,
+    save_fixture: SaveFixture,
+    company: Company,
+) -> None:
+    campo = await create_property(save_fixture, name="Campo 9")
+    colinas = await create_property(save_fixture, name="Colinas 21")
+    billed = await create_guest_expense(
+        save_fixture, campo, amount="1000", date=dt.date(2026, 11, 2)
+    )
+    await create_guest_expense(
+        save_fixture, campo, amount="250.50", date=dt.date(2026, 11, 3)
+    )
+    await create_guest_expense(
+        save_fixture, colinas, amount="99", date=dt.date(2026, 11, 4)
+    )
+    await login(user)
+    await client.post(
+        "/v1/invoices/",
+        json={
+            "property_id": str(campo.id),
+            "recipient_name": "Ana Guest",
+            "email": "ana@example.com",
+            "issued_on": "2026-11-25",
+            "due_on": "2026-11-30",
+            "lines": [
+                {
+                    "description": "x",
+                    "unit_price": "1000",
+                    "guest_expense_id": str(billed.id),
+                }
+            ],
+        },
+    )
+
+    campo_only = await client.get(
+        "/v1/guest-expenses/summary", params={"property_id": str(campo.id)}
+    )
+    open_ = await client.get("/v1/guest-expenses/summary", params={"invoiced": "false"})
+
+    assert campo_only.json() == {"count": 2, "total": 1250.5, "billed_total": 1000.0}
+    assert open_.json() == {"count": 2, "total": 349.5, "billed_total": 0.0}
