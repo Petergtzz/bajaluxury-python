@@ -11,9 +11,13 @@ import logging
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+# Queuing looks a job up by name, so the jobs have to be declared here too.
+from baja import tasks  # noqa: F401
 from baja.kit.db.postgres import create_async_sessionmaker
 from baja.postgres import create_async_engine
 from baja.recurring.service import recurring_charge as recurring_charge_service
+from baja.report.service import report as report_service
+from baja.worker import collect_jobs, send_jobs
 
 log = logging.getLogger("baja.scheduler")
 
@@ -39,17 +43,40 @@ def charge_recurring() -> None:
     asyncio.run(_charge_recurring())
 
 
+async def _send_due_reports() -> int:
+    engine = create_async_engine("scheduler")
+    try:
+        async with collect_jobs() as jobs:
+            async with create_async_sessionmaker(engine)() as session:
+                queued = await report_service.queue_due(session)
+                await session.commit()
+            await send_jobs(jobs)
+            return len(queued)
+    finally:
+        await engine.dispose()
+
+
+def send_due_reports() -> None:
+    """
+    Queues the monthly statements whose day has come. Hourly: a property set
+    up today for a day already past still goes today, and a claimed month is
+    never queued twice.
+    """
+    log.info("%d report(s) queued", asyncio.run(_send_due_reports()))
+
+
 def create_scheduler() -> BlockingScheduler:
     scheduler = BlockingScheduler(timezone="UTC")
-    scheduler.add_job(
-        charge_recurring,
-        CronTrigger(minute=5),
-        id=charge_recurring.__name__,
-        # Late after a restart or a slow run: run once, not once per missed hour.
-        coalesce=True,
-        max_instances=1,
-        misfire_grace_time=None,
-    )
+    for job, minute in ((charge_recurring, 5), (send_due_reports, 20)):
+        scheduler.add_job(
+            job,
+            CronTrigger(minute=minute),
+            id=job.__name__,
+            # Late after a restart or a slow run: run once, not once per missed hour.
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=None,
+        )
     return scheduler
 
 

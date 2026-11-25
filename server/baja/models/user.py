@@ -31,7 +31,3 @@ class User(RecordModel):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     role: Mapped[Role] = mapped_column(StringEnum(Role, length=16), nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    receives_monthly_report: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=text("false")
-    )
-    """A homeowner emailed their properties' statements each month."""

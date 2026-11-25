@@ -60,7 +60,6 @@ class UserService:
                 email=user_create.email,
                 name=user_create.name or None,
                 role=user_create.role,
-                receives_monthly_report=user_create.receives_monthly_report,
             )
         )
         await repository.set_property_ids(user, user_create.property_ids)
@@ -88,8 +87,6 @@ class UserService:
             user.email_verified = False
         if "name" in fields:
             user.name = user_update.name or None
-        if user_update.receives_monthly_report is not None:
-            user.receives_monthly_report = user_update.receives_monthly_report
         property_ids = user_update.property_ids
         if role != Role.homeowner:
             # Owners and managers see everything: assignments would only mislead.
@@ -132,7 +129,6 @@ class UserService:
             name=user.name,
             role=user.role,
             property_ids=sorted(property_ids),
-            receives_monthly_report=user.receives_monthly_report,
         )
 
 

@@ -8,7 +8,7 @@ from baja.company.service import get_company
 from baja.exceptions import BajaError
 from baja.kit.db.postgres import AsyncReadSession
 from baja.ledger.repository import TransactionRepository
-from baja.models import Currency, PaymentMethod, TransactionType, User
+from baja.models import Currency, PaymentMethod, Property, TransactionType, User
 from baja.property.service import property as property_service
 
 from .schemas import CategoryTotal, MethodTotal, Statement, StatementEntry
@@ -34,6 +34,18 @@ async def build_statement(
     if end < start:
         raise PeriodInvalid()
     property = await property_service.get(session, user, property_id)
+    return await statement_of(session, property, start, end, currency=currency)
+
+
+async def statement_of(
+    session: AsyncReadSession,
+    property: Property,
+    start: dt.date,
+    end: dt.date,
+    *,
+    currency: Currency | None = None,
+) -> Statement:
+    """A property's statement, for whoever already decided it may be read."""
     company = await get_company(session)
     currency = currency or company.currency
     convert = converter(company.currency, currency, company.usd_exchange_rate)

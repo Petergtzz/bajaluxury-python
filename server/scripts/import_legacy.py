@@ -26,6 +26,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 import asyncpg
 from sqlalchemy import or_, select, true, update
@@ -50,6 +51,9 @@ from baja.models import (
     InvoiceLine,
     PaymentMethod,
     Property,
+    PropertyReport,
+    PropertyReportRecipient,
+    RecipientKind,
     RecurringCharge,
     Role,
     Transaction,
@@ -59,6 +63,8 @@ from baja.models import (
 from baja.postgres import create_async_engine
 from baja.property.repository import PropertyRepository
 from baja.recurring.repository import RecurringChargeRepository
+from baja.report.repository import PropertyReportRepository
+from baja.report.schemas import DEFAULT_SEND_DAY
 from baja.user.repository import UserRepository
 
 # Laravel's `houses.account_type`, as the rule its balance triggers applied.
@@ -595,11 +601,10 @@ async def _import_users(
         role = ROLES[legacy_user.roles[0]]
         name = (legacy_user.name or "").strip() or None
         user = await repository.get_by_email(email)
-        values = {"role": role, "receives_monthly_report": legacy_user.send_report}
         if user is None:
-            user = await repository.create(User(email=email, name=name, **values))
+            user = await repository.create(User(email=email, name=name, role=role))
         else:
-            await repository.update(user, {**values, "name": name or user.name})
+            await repository.update(user, {"role": role, "name": name or user.name})
         # Owners and managers see every property: only homeowners are assigned.
         await repository.set_property_ids(
             user,
@@ -608,7 +613,50 @@ async def _import_users(
             else set(),
         )
         imported[legacy_user.user_id] = user
+    await _import_report_recipients(session, users, imported, properties)
     return imported
+
+
+async def _import_report_recipients(
+    session: AsyncSession,
+    users: list[LegacyUser],
+    imported: dict[int, User],
+    properties: dict[int, Property],
+) -> None:
+    """
+    Laravel emailed a homeowner their house's statement when `send_report`
+    was on; here their house's report is addressed to them, on the 2nd, the
+    day Laravel's schedule named. Only ever adds: who else receives it, and
+    on which day, may have been set here since.
+    """
+    wanted: dict[UUID, set[UUID]] = {}
+    for legacy_user in users:
+        user = imported[legacy_user.user_id]
+        if (
+            legacy_user.send_report
+            and user.role == Role.homeowner
+            and legacy_user.house_id
+        ):
+            property = properties[legacy_user.house_id]
+            if not property.is_archived:
+                wanted.setdefault(property.id, set()).add(user.id)
+    repository = PropertyReportRepository.from_session(session)
+    for property_id, user_ids in wanted.items():
+        report = await repository.get_for(property_id)
+        if report is None:
+            report = await repository.create(
+                PropertyReport(property_id=property_id, send_day=DEFAULT_SEND_DAY)
+            )
+            current: set[UUID] = set()
+        else:
+            current = {recipient.user_id for recipient in report.recipients}
+        session.add_all(
+            PropertyReportRecipient(
+                property_report_id=report.id, user_id=user_id, kind=RecipientKind.to
+            )
+            for user_id in user_ids - current
+        )
+    await session.flush()
 
 
 def _rows[L: LegacyTransaction | LegacyGuestExpense](

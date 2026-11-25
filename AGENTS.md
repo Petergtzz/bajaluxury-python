@@ -22,10 +22,9 @@ cp .env.example .env           # first time; set BAJA_POSTGRES_USER
 uv run task db_migrate         # apply migrations
 uv run task api                # http://127.0.0.1:8100
 uv run task worker             # background jobs (emails); dev logs them, codes included
-uv run task scheduler          # the clock: recurring charges, hourly
+uv run task scheduler          # the clock: recurring charges and monthly reports, hourly
 uv run task import_legacy <dsn>       # copy the Laravel database in (re-runnable, --dry-run)
 uv run task api_tokens issue <email> <label>   # a token for a phone; also list, revoke
-uv run task send_monthly_reports [YYYY-MM] [--dry-run]   # queue homeowners' monthly statements
 uv run task test               # pytest, one database per worker
 uv run task lint && uv run task lint_types
 ```
@@ -50,4 +49,5 @@ Requirements: Python 3.14, Postgres 17 and Redis on localhost.
 - Permissions come from the user's role only (`authz/permission.py`). Endpoints take `Authorize(Permission.x)`. Owners and managers see every property; a homeowner sees the properties assigned in `property_members`, and every query over property-owned rows applies `visible_properties` so anything else is a 404.
 - Recurring charges are data (`recurring_charges`), charged by the scheduler. Each keeps a `charged_through` cursor that only moves forward, and each month's row has a fixed id, so a run never charges a month twice or charges for the past.
 - Reports render one model: a property's `Statement` (`statement/`), or the utilities report. PDFs are A4 on `kit/paper`, IBM Plex Sans; look at a rendered page after changing one.
+- Monthly statements are set up per property (`property_reports`: a send day and recipients, To or Cc), queued by the scheduler once per property and month (`report_sends`, which keeps the PDF as sent), and sent by a job.
 - Rate limits are fixed windows in Redis (`kit/rate_limit.py`), charged before the work they guard.

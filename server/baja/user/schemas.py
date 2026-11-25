@@ -18,9 +18,6 @@ class ManagedUserSchema(UserSchema):
     property_ids: list[UUID] = Field(
         description="The properties a homeowner sees. Empty for owners and managers."
     )
-    receives_monthly_report: bool = Field(
-        description="Emailed their properties' statements each month. Homeowners."
-    )
 
 
 class UserUpdate(BaseModel):
@@ -38,7 +35,6 @@ class ManagedUserCreate(BaseModel):
     property_ids: set[UUID] = Field(
         default_factory=set, description="Only for homeowners."
     )
-    receives_monthly_report: bool = False
 
 
 class ManagedUserUpdate(BaseModel):
@@ -50,4 +46,3 @@ class ManagedUserUpdate(BaseModel):
     property_ids: set[UUID] | None = Field(
         default=None, description="Replaces the assignments. Only for homeowners."
     )
-    receives_monthly_report: bool | None = None

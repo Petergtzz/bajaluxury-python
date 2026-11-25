@@ -18,6 +18,9 @@ from baja.models import (
     PaymentMethod,
     Property,
     PropertyMember,
+    PropertyReport,
+    PropertyReportRecipient,
+    RecipientKind,
     RecurringCharge,
     Role,
     Transaction,
@@ -470,12 +473,42 @@ def test_the_charge_table_has_every_laravel_command_charge() -> None:
     assert all(c.amount > 0 for c in RECURRING_CHARGES)
 
 
-async def test_copies_who_gets_the_monthly_report(session: AsyncSession) -> None:
+async def test_addresses_each_house_report_to_who_got_it(
+    session: AsyncSession, save_fixture: SaveFixture
+) -> None:
+    await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
+    report = (
+        await session.execute(
+            select(PropertyReport).options(selectinload(PropertyReport.recipients))
+        )
+    ).scalar_one()
+    manager = (
+        await session.execute(select(User).where(User.email == "user67@example.com"))
+    ).scalar_one()
+    session.add(
+        PropertyReportRecipient(
+            property_report_id=report.id, user_id=manager.id, kind=RecipientKind.cc
+        )
+    )
+    report.send_day = 5
+    await session.flush()
+
     await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
 
-    users = (await session.execute(select(User).order_by(User.email))).scalars()
-    assert [u.email for u in users if u.receives_monthly_report] == [
-        "user3@example.com"
+    recipients = (
+        await session.execute(
+            select(User.email, PropertyReportRecipient.kind)
+            .join(User, User.id == PropertyReportRecipient.user_id)
+            .where(PropertyReportRecipient.deleted_at.is_(None))
+            .order_by(User.email)
+        )
+    ).all()
+    assert [tuple(r) for r in recipients] == [
+        ("user3@example.com", RecipientKind.to),
+        ("user67@example.com", RecipientKind.cc),
+    ]
+    assert (await session.execute(select(PropertyReport.send_day))).scalars().all() == [
+        5
     ]
 
 

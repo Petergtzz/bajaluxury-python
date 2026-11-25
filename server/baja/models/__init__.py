@@ -6,9 +6,15 @@ from .company import Company, Currency
 from .guest_expense import GuestExpense
 from .invoice import Invoice, InvoiceLine
 from .login_code import LoginCode
-from .monthly_report import MonthlyReport
 from .property import Property
 from .property_member import PropertyMember
+from .property_report import (
+    PropertyReport,
+    PropertyReportRecipient,
+    RecipientKind,
+    ReportSend,
+    SendStatus,
+)
 from .recurring_charge import RecurringCharge
 from .transaction import PaymentMethod, Transaction, TransactionType
 from .user import Role, User
@@ -27,13 +33,17 @@ __all__ = [
     "InvoiceLine",
     "LoginCode",
     "Model",
-    "MonthlyReport",
     "PaymentMethod",
     "Property",
     "PropertyMember",
+    "PropertyReport",
+    "PropertyReportRecipient",
+    "RecipientKind",
     "RecordModel",
     "RecurringCharge",
+    "ReportSend",
     "Role",
+    "SendStatus",
     "Transaction",
     "TransactionType",
     "User",

@@ -51,7 +51,6 @@ worker = { cmd = "dramatiq --processes 1 --threads 1 --watch baja baja.worker.ru
 scheduler = { cmd = "python -m baja.scheduler", help = "run the clock: recurring charges" }
 db_migrate = { cmd = "alembic upgrade head", help = "apply database migrations" }
 api_tokens = { cmd = "python -m scripts.api_tokens", help = "issue, list or revoke API tokens: task api_tokens issue <email> <label>" }
-send_monthly_reports = { cmd = "python -m scripts.send_monthly_reports", help = "queue last month's reports: task send_monthly_reports [YYYY-MM] [--dry-run]" }
 import_legacy = { cmd = "python -m scripts.import_legacy", help = "copy the Laravel database in: task import_legacy <dsn> [--dry-run]" }
 test = { cmd = "python -m pytest -n auto", help = "run all tests in parallel" }
 lint = { cmd = "ruff format . && ruff check --fix .", help = "format and lint with autofix" }
