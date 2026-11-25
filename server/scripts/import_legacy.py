@@ -216,6 +216,7 @@ class LegacyUser:
     name: str | None
     house_id: int | None
     roles: list[str]
+    send_report: bool = False
 
 
 @dataclass(frozen=True)
@@ -294,7 +295,7 @@ async def read_legacy(dsn: str) -> Legacy:
             "SELECT house_id, address, account_type, is_active FROM houses"
         )
         users = await connection.fetch(
-            "SELECT u.user_id, u.email, u.name, u.house_id, "
+            "SELECT u.user_id, u.email, u.name, u.house_id, u.send_report, "
             "array_remove(array_agg(r.name ORDER BY r.name), NULL) AS roles "
             "FROM users u "
             "LEFT JOIN model_has_roles m "
@@ -503,10 +504,11 @@ async def _import_users(
         role = ROLES[legacy_user.roles[0]]
         name = (legacy_user.name or "").strip() or None
         user = await repository.get_by_email(email)
+        values = {"role": role, "receives_monthly_report": legacy_user.send_report}
         if user is None:
-            user = await repository.create(User(email=email, name=name, role=role))
+            user = await repository.create(User(email=email, name=name, **values))
         else:
-            await repository.update(user, {"role": role, "name": name or user.name})
+            await repository.update(user, {**values, "name": name or user.name})
         # Owners and managers see every property: only homeowners are assigned.
         await repository.set_property_ids(
             user,

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Your {{ month }} statement{% endblock %}
+{% block content %}
+<p style="margin:0 0 16px;font-size:16px;line-height:24px;">{% if first_name %}Hola, {{ first_name }}.{% else %}Hola.{% endif %}</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:24px;">Your statement{% if properties|length > 1 %}s{% endif %} for {{ month }} {% if properties|length > 1 %}are{% else %}is{% endif %} attached: {# a name never breaks across lines #}{{ properties|map("replace", " ", "\u00a0")|join(", ") }}.</p>
+<p style="margin:0 0 24px;"><a href="{{ url }}" style="display:inline-block;padding:12px 20px;background:#18181b;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">See your account</a></p>
+<p style="margin:0 0 16px;font-size:14px;line-height:20px;color:#78716c;">You can log in at any time with this email address.</p>
+<p style="margin:0;font-size:14px;line-height:20px;">{{ company }}</p>
+{% endblock %}

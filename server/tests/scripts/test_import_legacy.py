@@ -265,7 +265,7 @@ def user(
 USERS = [
     user(1, "admin"),
     user(67, "editor"),
-    user(3, "viewer", house_id=1),
+    user(3, "viewer", house_id=1, send_report=True),
     user(51, "viewer", house_id=40, name=None),
 ]
 
@@ -459,3 +459,12 @@ def test_the_charge_table_has_every_laravel_command_charge() -> None:
     assert len(RECURRING_CHARGES) == 60
     assert {c.day_of_month for c in RECURRING_CHARGES} == {10, 15, 31}
     assert all(c.amount > 0 for c in RECURRING_CHARGES)
+
+
+async def test_copies_who_gets_the_monthly_report(session: AsyncSession) -> None:
+    await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
+
+    users = (await session.execute(select(User).order_by(User.email))).scalars()
+    assert [u.email for u in users if u.receives_monthly_report] == [
+        "user3@example.com"
+    ]

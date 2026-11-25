@@ -4,6 +4,7 @@ from .api_token import ApiToken
 from .company import Company, Currency
 from .guest_expense import GuestExpense
 from .login_code import LoginCode
+from .monthly_report import MonthlyReport
 from .property import Property
 from .property_member import PropertyMember
 from .recurring_charge import RecurringCharge
@@ -18,6 +19,7 @@ __all__ = [
     "GuestExpense",
     "LoginCode",
     "Model",
+    "MonthlyReport",
     "PaymentMethod",
     "Property",
     "PropertyMember",

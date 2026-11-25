@@ -34,6 +34,7 @@ async def test_owners_add_homeowners_to_their_properties(
         "name": "Lore",
         "role": "homeowner",
         "property_ids": [str(campo.id)],
+        "receives_monthly_report": False,
     }
     listed = (await client.get("/v1/users/")).json()
     assert [u["email"] for u in listed] == [user.email, "lore@example.com"]
@@ -208,3 +209,30 @@ async def test_owners_cannot_delete_themselves(
     await login(user)
 
     assert (await client.delete(f"/v1/users/{user.id}")).status_code == 409
+
+
+async def test_owners_choose_who_gets_the_monthly_report(
+    client: AsyncClient, login: LoginFixture, user: User, save_fixture: SaveFixture
+) -> None:
+    campo = await create_property(save_fixture, name="Campo 9")
+    await login(user)
+    created = await client.post(
+        "/v1/users/",
+        json={
+            "email": "lore@example.com",
+            "role": "homeowner",
+            "property_ids": [str(campo.id)],
+            "receives_monthly_report": True,
+        },
+    )
+
+    renamed = await client.patch(
+        f"/v1/users/{created.json()['id']}", json={"name": "Lore"}
+    )
+    stopped = await client.patch(
+        f"/v1/users/{created.json()['id']}", json={"receives_monthly_report": False}
+    )
+
+    assert created.json()["receives_monthly_report"] is True
+    assert renamed.json()["receives_monthly_report"] is True
+    assert stopped.json()["receives_monthly_report"] is False
