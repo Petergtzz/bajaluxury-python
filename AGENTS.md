@@ -15,22 +15,24 @@ This repository holds the FastAPI backend (`server/`) and the Next.js dashboard 
 
 ## Server
 
-Run every command from `server/`, with the virtualenv at `../venv`:
+Run every command from `server/`, with uv (it keeps `.venv` in step with `uv.lock`):
 
 ```
-source ../venv/bin/activate
-pip install -e . --group dev   # after changing dependencies
 cp .env.example .env           # first time; set BAJA_POSTGRES_USER
-task db_migrate                # apply migrations
-task api                       # http://127.0.0.1:8100
-task worker                    # background jobs (emails)
-task scheduler                 # the clock: recurring charges, hourly
-task import_legacy <dsn>       # copy the Laravel database in (re-runnable, --dry-run)
-task api_tokens issue <email> <label>   # a token for a phone; also list, revoke
-task send_monthly_reports [YYYY-MM] [--dry-run]   # queue homeowners' monthly statements
-task test                      # pytest, one database per worker
-task lint && task lint_types
+uv run task db_migrate         # apply migrations
+uv run task api                # http://127.0.0.1:8100
+uv run task worker             # background jobs (emails); dev logs them, codes included
+uv run task scheduler          # the clock: recurring charges, hourly
+uv run task import_legacy <dsn>       # copy the Laravel database in (re-runnable, --dry-run)
+uv run task api_tokens issue <email> <label>   # a token for a phone; also list, revoke
+uv run task send_monthly_reports [YYYY-MM] [--dry-run]   # queue homeowners' monthly statements
+uv run task test               # pytest, one database per worker
+uv run task lint && uv run task lint_types
 ```
+
+A change to the dependencies in `pyproject.toml` comes with `uv lock` in the same commit. The plain virtualenv at `../venv` works too (`source ../venv/bin/activate`, `pip install -e . --group dev`, then `task ...`).
+
+The web app runs from `clients/apps/web`: `pnpm install`, then `pnpm run dev` (http://127.0.0.1:3100).
 
 Requirements: Python 3.14, Postgres 17 and Redis on localhost.
 
