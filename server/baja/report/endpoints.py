@@ -7,21 +7,21 @@ from baja.authz.dependencies import Authorize
 from baja.authz.permission import Permission
 from baja.exceptions import NotPermitted, ResourceNotFound, Unauthorized
 from baja.kit.db.postgres import AsyncReadSession, AsyncSession
-from baja.models import RecipientKind, ReportSend, User
+from baja.models import ReportSend, User
 from baja.postgres import get_db_read_session, get_db_session
 from baja.property.service import PropertyArchived
+from baja.recipient.service import RecipientsInvalid, to_schemas
 from baja.statement.endpoints import PDF, download
 
 from .schemas import (
     FailedStatementCount,
-    ReportRecipientSchema,
     ReportSchema,
     ReportSendRequest,
     ReportSent,
     ReportUpdate,
     SentStatementSchema,
 )
-from .service import MonthNotOver, RecipientsInvalid, ReportIsOff, ReportView
+from .service import MonthNotOver, ReportIsOff, ReportView
 from .service import report as report_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -42,18 +42,7 @@ def _schema(view: ReportView) -> ReportSchema:
         property_id=view.property.id,
         property_name=view.property.name,
         send_day=view.report.send_day if view.report else 2,
-        recipients=sorted(
-            (
-                ReportRecipientSchema(
-                    user_id=r.user_id,
-                    email=r.user.email,
-                    name=r.user.name,
-                    kind=r.kind,
-                )
-                for r in recipients
-            ),
-            key=lambda r: (r.kind != RecipientKind.to, (r.name or r.email).lower()),
-        ),
+        recipients=to_schemas(recipients),
         last_sent_at=view.last_sent_at,
     )
 

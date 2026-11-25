@@ -1,7 +1,7 @@
 'use client'
 
 import { ClipboardCheck, Plus } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 import { ListHeading } from '@/components/list-heading'
@@ -9,12 +9,15 @@ import { ListRow, RowMark, StatusMeta } from '@/components/list-row'
 import { PageAction, PageHeader } from '@/components/page-header'
 import { useCompany, usePermissions } from '@/components/session-context'
 import { SettingsListState } from '@/components/settings/settings-list-state'
+import { TabPills } from '@/components/tab-pills'
 import { useChecklists } from '@/hooks/checklists'
 import { useProperties } from '@/hooks/ledger'
 import type { Checklist } from '@/lib/api/types'
+import { checklistTabs } from '@/lib/checklist-tabs'
 import { describeChecklist, describeProgress, splitByDay } from '@/lib/checklists'
 import { formatDayHeading, todayIn } from '@/lib/format'
 
+import { ChecklistProperties } from './checklist-properties'
 import { StartChecklistDialog } from './start-checklist-dialog'
 
 /**
@@ -24,7 +27,12 @@ import { StartChecklistDialog } from './start-checklist-dialog'
  * unticked is the one somebody needs to look at.
  */
 export function Checklists() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { manages } = usePermissions()
+  // A homeowner is only shown the walks; who hears about them is not theirs.
+  const tab = manages ? checklistTabs.parse(searchParams) : 'history'
   const company = useCompany()
   const timezone = company.data?.timezone ?? 'America/Mazatlan'
   const checklists = useChecklists()
@@ -49,7 +57,22 @@ export function Checklists() {
         }
       />
 
-      {(checklists.data ?? []).length === 0 ? (
+      {manages && (
+        <TabPills
+          label="Checklists"
+          tabs={checklistTabs.tabs}
+          current={tab}
+          labels={checklistTabs.labels}
+          onSelect={(chosen) => {
+            const search = checklistTabs.search(chosen)
+            router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
+          }}
+        />
+      )}
+
+      {tab === 'properties' ? (
+        <ChecklistProperties />
+      ) : (checklists.data ?? []).length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           <SettingsListState
             query={checklists}

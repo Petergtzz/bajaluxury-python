@@ -11,14 +11,18 @@ import { RowMenu } from '@/components/row-menu'
 import { usePermissions } from '@/components/session-context'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { useChecklist, useDeleteChecklist, useSetChecklistItem } from '@/hooks/checklists'
+import {
+  useChecklist,
+  useCompleteChecklist,
+  useDeleteChecklist,
+  useSetChecklistItem,
+} from '@/hooks/checklists'
 import { useProperties } from '@/hooks/ledger'
 import { getErrorMessage } from '@/lib/api/errors'
 import type { ChecklistItem } from '@/lib/api/types'
 import { describeProgress, TYPE_NAMES } from '@/lib/checklists'
 import { cn } from '@/lib/utils'
 
-import { FinishChecklistDialog } from './finish-checklist-dialog'
 import { NoteDialog } from './note-dialog'
 
 /**
@@ -32,10 +36,10 @@ export function ChecklistRun({ checklistId }: { checklistId: string }) {
   const checklist = useChecklist(checklistId)
   const properties = useProperties()
   const setItem = useSetChecklistItem(checklistId)
+  const complete = useCompleteChecklist(checklistId)
   const remove = useDeleteChecklist()
   const { manages } = usePermissions()
   const [confirming, setConfirming] = useState(false)
-  const [finishing, setFinishing] = useState(false)
   const [noting, setNoting] = useState<ChecklistItem | null>(null)
 
   if (checklist.isPending) {
@@ -71,6 +75,16 @@ export function ChecklistRun({ checklistId }: { checklistId: string }) {
     } catch (error) {
       toast.error(getErrorMessage(error))
     }
+  }
+
+  const finish = async () => {
+    try {
+      await complete.mutateAsync()
+    } catch (error) {
+      toast.error(getErrorMessage(error))
+      return
+    }
+    toast.success('Checklist finished')
   }
 
   const drop = async () => {
@@ -132,9 +146,11 @@ export function ChecklistRun({ checklistId }: { checklistId: string }) {
             </p>
           )}
           <Button
-            onClick={() => setFinishing(true)}
+            onClick={() => void finish()}
+            disabled={complete.isPending}
             className="h-12 w-full rounded-full text-base font-semibold"
           >
+            {complete.isPending && <Spinner className="size-5" />}
             Finish checklist
           </Button>
         </div>
@@ -147,15 +163,6 @@ export function ChecklistRun({ checklistId }: { checklistId: string }) {
           item={noting}
           open
           onOpenChange={(open) => !open && setNoting(null)}
-        />
-      )}
-
-      {finishing && (
-        <FinishChecklistDialog
-          checklist={walk}
-          propertyName={name}
-          open
-          onOpenChange={setFinishing}
         />
       )}
 

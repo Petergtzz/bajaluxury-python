@@ -33,6 +33,21 @@ async def template(save_fixture: SaveFixture) -> None:
         )
 
 
+async def set_recipients(
+    client: AsyncClient, property_id: object, *recipients: tuple[User, str]
+) -> Any:
+    response = await client.put(
+        f"/v1/checklists/properties/{property_id}",
+        json={
+            "recipients": [
+                {"user_id": str(u.id), "kind": kind} for u, kind in recipients
+            ]
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 async def start(
     client: AsyncClient, property_id: object, type: str = "check_in"
 ) -> Any:
@@ -107,7 +122,10 @@ async def test_completing_sends_the_report_and_freezes_it(
     await template(save_fixture)
     campo = await create_property(save_fixture, name="Campo 9")
     await create_user(save_fixture, Role.owner, email="boss@example.com")
+    lore = await create_user(save_fixture, Role.homeowner, email="lore@example.com")
+    await assign_properties(save_fixture, lore, campo)
     await login(user)
+    await set_recipients(client, campo.id, (lore, "to"), (user, "cc"))
     checklist = await start(client, campo.id)
     keys, pool = (item["id"] for item in checklist["items"])
     url = f"/v1/checklists/{checklist['id']}"
@@ -116,15 +134,17 @@ async def test_completing_sends_the_report_and_freezes_it(
     )
     await client.patch(f"{url}/items/{pool}", json={"note": "Needs a clean"})
 
-    completed = await client.post(
-        f"{url}/complete",
-        json={"recipients": ["lore@example.com", "lore@example.com", user.email]},
-    )
-    again = await client.post(f"{url}/complete", json={"recipients": ["x@example.com"]})
+    completed = await client.post(f"{url}/complete")
+    # Who hears about the next one changes; who heard about this one doesn't.
+    await set_recipients(client, campo.id, (user, "to"))
+    again = await client.post(f"{url}/complete")
     edit = await client.patch(f"{url}/items/{pool}", json={"is_checked": True})
 
     assert completed.json()["completed_at"] is not None
-    assert completed.json()["emailed_to"] == ["lore@example.com", user.email]
+    assert (completed.json()["emailed_to"], completed.json()["emailed_cc"]) == (
+        ["lore@example.com"],
+        [user.email],
+    )
     assert (again.status_code, edit.status_code) == (409, 409)
     assert edit.json()["error"] == "ChecklistCompleted"
     assert sent_jobs == [("checklist.send_report", (checklist["id"],))]
@@ -132,8 +152,11 @@ async def test_completing_sends_the_report_and_freezes_it(
     await tasks.send_checklist_report(checklist["id"])
 
     [email] = sender.sent
-    assert email.to == ("lore@example.com", user.email)
-    assert email.bcc == ("boss@example.com",)
+    assert (email.to, email.cc, email.bcc) == (
+        ("lore@example.com",),
+        (user.email,),
+        ("boss@example.com",),
+    )
     assert email.subject == "Check-in completed · Campo 9"
     checked, unchecked = email.text.split("Not checked:")
     assert "Keys are in the lockbox (Note: Two sets)" in checked
@@ -275,3 +298,83 @@ async def test_an_order_names_every_item_once(
     )
 
     assert (response.status_code, response.json()["error"]) == (422, "OrderInvalid")
+
+
+async def test_every_active_property_says_who_hears_about_it(
+    client: AsyncClient, login: LoginFixture, user: User, save_fixture: SaveFixture
+) -> None:
+    campo = await create_property(save_fixture, name="Campo 9")
+    colinas = await create_property(save_fixture, name="Colinas 21")
+    await create_property(save_fixture, name="Sold", is_archived=True)
+    lore = await create_user(save_fixture, Role.homeowner, email="lore@example.com")
+    stranger = await create_user(save_fixture, Role.homeowner, email="s@example.com")
+    await assign_properties(save_fixture, lore, campo)
+    await assign_properties(save_fixture, stranger, colinas)
+    await login(user)
+
+    saved = await set_recipients(client, campo.id, (user, "cc"), (lore, "to"))
+    listed = (await client.get("/v1/checklists/properties")).json()
+    outsider = await client.put(
+        f"/v1/checklists/properties/{campo.id}",
+        json={"recipients": [{"user_id": str(stranger.id), "kind": "to"}]},
+    )
+    copies_only = await client.put(
+        f"/v1/checklists/properties/{campo.id}",
+        json={"recipients": [{"user_id": str(user.id), "kind": "cc"}]},
+    )
+    nobody = await set_recipients(client, colinas.id)
+
+    assert [p["property_name"] for p in listed] == ["Campo 9", "Colinas 21"]
+    assert listed[0] == saved
+    assert [(r["email"], r["kind"]) for r in saved["recipients"]] == [
+        ("lore@example.com", "to"),
+        (user.email, "cc"),
+    ]
+    assert outsider.json()["detail"] == (
+        "Everyone who receives it must be able to see the property."
+    )
+    assert copies_only.status_code == 422
+    assert nobody["recipients"] == []
+
+
+async def test_homeowners_set_up_no_recipients(
+    client: AsyncClient, login: LoginFixture, save_fixture: SaveFixture
+) -> None:
+    campo = await create_property(save_fixture)
+    homeowner = await create_user(save_fixture, Role.homeowner)
+    await assign_properties(save_fixture, homeowner, campo)
+    await login(homeowner)
+
+    listed = await client.get("/v1/checklists/properties")
+    put = await client.put(
+        f"/v1/checklists/properties/{campo.id}", json={"recipients": []}
+    )
+
+    assert (listed.status_code, put.status_code) == (403, 403)
+
+
+async def test_a_property_naming_nobody_reports_to_the_owners(
+    client: AsyncClient,
+    login: LoginFixture,
+    user: User,
+    save_fixture: SaveFixture,
+    company: Company,
+    sender: RecordingSender,
+    worker_resources: None,
+) -> None:
+    await template(save_fixture)
+    campo = await create_property(save_fixture, name="Campo 9")
+    await create_user(save_fixture, Role.owner, email="boss@example.com")
+    await login(user)
+    checklist = await start(client, campo.id)
+
+    completed = await client.post(f"/v1/checklists/{checklist['id']}/complete")
+    await tasks.send_checklist_report(checklist["id"])
+
+    assert completed.json()["emailed_to"] == []
+    [email] = sender.sent
+    assert (set(email.to), email.cc, email.bcc) == (
+        {"boss@example.com", user.email},
+        (),
+        (),
+    )

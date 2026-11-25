@@ -42,6 +42,7 @@ from baja.ledger.service import affects_balance
 from baja.models import (
     Checklist,
     ChecklistItem,
+    ChecklistRecipient,
     ChecklistTemplateItem,
     ChecklistType,
     Company,
@@ -614,6 +615,7 @@ async def _import_users(
         )
         imported[legacy_user.user_id] = user
     await _import_report_recipients(session, users, imported, properties)
+    await _import_checklist_recipients(session, users, imported, properties)
     return imported
 
 
@@ -656,6 +658,40 @@ async def _import_report_recipients(
             )
             for user_id in user_ids - current
         )
+    await session.flush()
+
+
+async def _import_checklist_recipients(
+    session: AsyncSession,
+    users: list[LegacyUser],
+    imported: dict[int, User],
+    properties: dict[int, Property],
+) -> None:
+    """
+    Laravel offered a house's homeowners as a finished checklist's recipients;
+    here they are who its checklists go to. Only for a house never set up:
+    one whose recipients were changed here, even to nobody, is left alone.
+    """
+    set_up = set(
+        (
+            await session.execute(
+                # Deleted rows too: they are recipients someone took off.
+                select(ChecklistRecipient.property_id).distinct()
+            )
+        ).scalars()
+    )
+    session.add_all(
+        ChecklistRecipient(
+            property_id=property.id,
+            user_id=imported[legacy_user.user_id].id,
+            kind=RecipientKind.to,
+        )
+        for legacy_user in users
+        if imported[legacy_user.user_id].role == Role.homeowner
+        and legacy_user.house_id is not None
+        and not (property := properties[legacy_user.house_id]).is_archived
+        and property.id not in set_up
+    )
     await session.flush()
 
 

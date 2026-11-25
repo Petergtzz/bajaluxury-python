@@ -50,4 +50,5 @@ Requirements: Python 3.14, Postgres 17 and Redis on localhost.
 - Recurring charges are data (`recurring_charges`), charged by the scheduler. Each keeps a `charged_through` cursor that only moves forward, and each month's row has a fixed id, so a run never charges a month twice or charges for the past.
 - Reports render one model: a property's `Statement` (`statement/`). PDFs are A4 on `kit/paper`, IBM Plex Sans; look at a rendered page after changing one.
 - Monthly statements are set up per property (`property_reports`: a send day and recipients, To or Cc), queued by the scheduler once per property and month (`report_sends`, which keeps the PDF as sent), and sent by a job.
+- A completed checklist is emailed to its property's recipients (`checklist_recipients`, To or Cc), as they were when it was completed; the company's owners are always copied blind, or addressed when the property names nobody. Recipient rules are shared (`recipient/`).
 - Rate limits are fixed windows in Redis (`kit/rate_limit.py`), charged before the work they guard.

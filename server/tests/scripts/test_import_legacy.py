@@ -8,9 +8,11 @@ from sqlalchemy.orm import selectinload
 
 import baja.company.service
 from baja.kit.db.postgres import AsyncSession
+from baja.kit.utils import utc_now
 from baja.models import (
     Checklist,
     ChecklistItem,
+    ChecklistRecipient,
     ChecklistTemplateItem,
     Company,
     GuestExpense,
@@ -510,6 +512,34 @@ async def test_addresses_each_house_report_to_who_got_it(
     assert (await session.execute(select(PropertyReport.send_day))).scalars().all() == [
         5
     ]
+
+
+async def test_sends_each_house_checklists_to_its_homeowners_until_changed(
+    session: AsyncSession, save_fixture: SaveFixture
+) -> None:
+    async def recipients() -> list[tuple[str, RecipientKind]]:
+        rows = await session.execute(
+            select(User.email, ChecklistRecipient.kind)
+            .join(User, User.id == ChecklistRecipient.user_id)
+            .where(ChecklistRecipient.deleted_at.is_(None))
+            .order_by(User.email)
+        )
+        return [(email, kind) for email, kind in rows.all()]
+
+    await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
+    seeded = await recipients()
+    # Someone takes the homeowner off: running the import again leaves it so.
+    for recipient in (await session.execute(select(ChecklistRecipient))).scalars():
+        recipient.deleted_at = utc_now()
+    await session.flush()
+    await import_legacy(session, dataclasses.replace(LEGACY, users=USERS))
+
+    # Every homeowner, whether or not they took the monthly statement.
+    assert seeded == [
+        ("user3@example.com", RecipientKind.to),
+        ("user51@example.com", RecipientKind.to),
+    ]
+    assert await recipients() == []
 
 
 CREATED = dt.datetime(2026, 6, 1, 15, 30)

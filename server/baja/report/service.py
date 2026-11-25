@@ -3,16 +3,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
-
-from baja.authz.permission import Permission, has_permission
 from baja.company.service import today as company_today
 from baja.exceptions import BajaError, Conflict, ResourceNotFound
 from baja.kit.db.postgres import AsyncReadSession, AsyncSession
 from baja.kit.utils import utc_now
 from baja.models import (
     Property,
-    PropertyMember,
     PropertyReport,
     PropertyReportRecipient,
     RecipientKind,
@@ -22,17 +18,13 @@ from baja.models import (
 )
 from baja.property.repository import PropertyRepository
 from baja.property.service import property as property_service
+from baja.recipient.service import check_recipients
 from baja.worker import enqueue_job
 
 from .repository import PropertyReportRepository, ReportSendRepository
 from .schemas import ReportUpdate
 
 SEND = "report.send"
-
-
-class RecipientsInvalid(BajaError):
-    def __init__(self, message: str) -> None:
-        super().__init__(message, 422)
 
 
 class ReportIsOff(Conflict):
@@ -79,7 +71,7 @@ class ReportService:
         self, session: AsyncSession, user: User, property_id: UUID, update: ReportUpdate
     ) -> ReportView:
         property = await property_service.get_open(session, user, property_id)
-        recipients = await self._check_recipients(session, property, update)
+        recipients = await check_recipients(session, property, update.recipients)
         repository = PropertyReportRepository.from_session(session)
         report = await repository.get_for(property.id)
         if report is None:
@@ -199,43 +191,6 @@ class ReportService:
             await repository.update(send, values)
         enqueue_job(SEND, str(send.id))
         return send
-
-    async def _check_recipients(
-        self, session: AsyncReadSession, property: Property, update: ReportUpdate
-    ) -> dict[UUID, RecipientKind]:
-        chosen = {recipient.user_id: recipient.kind for recipient in update.recipients}
-        if len(chosen) != len(update.recipients):
-            raise RecipientsInvalid("Someone is on it twice.")
-        if RecipientKind.to not in chosen.values():
-            raise RecipientsInvalid(
-                "Address it to someone: at least one recipient is To."
-            )
-        users = (
-            await session.execute(
-                select(User).where(User.id.in_(chosen), User.deleted_at.is_(None))
-            )
-        ).scalars()
-        members = set(
-            (
-                await session.execute(
-                    select(PropertyMember.user_id).where(
-                        PropertyMember.property_id == property.id,
-                        PropertyMember.deleted_at.is_(None),
-                    )
-                )
-            ).scalars()
-        )
-        allowed = {
-            user.id
-            for user in users
-            if has_permission(user.role, Permission.properties_read_all)
-            or user.id in members
-        }
-        if allowed != set(chosen):
-            raise RecipientsInvalid(
-                "Everyone who receives it must be able to see the property."
-            )
-        return chosen
 
     async def _view(self, session: AsyncReadSession, property: Property) -> ReportView:
         report = await PropertyReportRepository.from_session(session).get_for(

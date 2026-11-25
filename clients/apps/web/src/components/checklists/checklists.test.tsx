@@ -10,10 +10,12 @@ import { ChecklistRun } from './checklist-run'
 import { Checklists } from './checklists'
 
 const push = vi.fn()
+const replace = vi.fn()
+let search = 'tab=history'
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push, replace: vi.fn() }),
+  useRouter: () => ({ push, replace }),
   usePathname: () => '/checklists',
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(search),
 }))
 const toastSuccess = vi.fn()
 vi.mock('sonner', () => ({
@@ -22,6 +24,8 @@ vi.mock('sonner', () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  search = 'tab=history'
+  replace.mockReset()
   push.mockReset()
   toastSuccess.mockReset()
 })
@@ -43,6 +47,7 @@ const OPEN: Checklist = {
   created_at: '2026-11-20T15:00:00Z',
   completed_at: null,
   emailed_to: [],
+  emailed_cc: [],
   items: [item('i1', 'Water tank', true), item('i2', 'Towels')],
 }
 const DONE: Checklist = {
@@ -94,6 +99,83 @@ describe('Checklists', () => {
   })
 })
 
+describe('Checklists, the properties tab', () => {
+  it('says who hears about each property, and changes it in its dialog', async () => {
+    search = ''
+    const calls = stubRoutes({
+      '/v1/checklists/properties': {
+        status: 200,
+        body: [
+          {
+            property_id: 'p1',
+            property_name: 'Colinas 21',
+            recipients: [
+              { user_id: 'u2', email: 'ana@example.com', name: 'Ana', kind: 'to' },
+            ],
+          },
+          { property_id: 'p2', property_name: 'Campo 9', recipients: [] },
+        ],
+      },
+      '/v1/users/': {
+        status: 200,
+        body: [
+          {
+            id: 'u2',
+            email: 'ana@example.com',
+            name: 'Ana',
+            role: 'homeowner',
+            property_ids: ['p1'],
+          },
+          {
+            id: 'u4',
+            email: 'luis@example.com',
+            name: 'Luis',
+            role: 'manager',
+            property_ids: [],
+          },
+        ],
+      },
+      '/v1/checklists/properties/p1': { status: 200, body: {} },
+      '/v1/company': COMPANY,
+    })
+    renderSignedIn(<Checklists />)
+
+    expect(await screen.findByText('Ana')).toBeTruthy()
+    expect(screen.getByText('Nobody hears about it')).toBeTruthy()
+
+    await userEvent.click(screen.getByText('Colinas 21'))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(await within(dialog).findByLabelText('Luis'))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('Colinas 21 checklists will be sent'),
+    )
+    expect(calls.find((call) => call.method === 'PUT')).toMatchObject({
+      path: '/v1/checklists/properties/p1',
+      body: {
+        recipients: [
+          { user_id: 'u2', kind: 'to' },
+          { user_id: 'u4', kind: 'cc' },
+        ],
+      },
+    })
+  })
+
+  it('leaves the tabs out for a homeowner, who sees only the walks', async () => {
+    search = ''
+    const calls = stubRoutes({
+      '/v1/checklists/': { status: 200, body: [] },
+      '/v1/company': COMPANY,
+    })
+    renderSignedIn(<Checklists />, HOMEOWNER)
+
+    expect(await screen.findByText('No checklists of your properties yet.')).toBeTruthy()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(calls.some((call) => call.path === '/v1/checklists/properties')).toBe(false)
+  })
+})
+
 describe('A walk', () => {
   it('ticks an item with one tap on its row', async () => {
     const calls = stubRoutes({
@@ -115,68 +197,33 @@ describe('A walk', () => {
     })
   })
 
-  it('emails the finished walk to the property’s owners, and anyone added', async () => {
+  it('finishes in one tap, sending to whoever the property names', async () => {
     const calls = stubRoutes({
       '/v1/checklists/c1': { status: 200, body: OPEN },
       '/v1/properties/': PROPERTIES,
-      '/v1/users/': {
-        status: 200,
-        body: [
-          {
-            id: 'u2',
-            email: 'ana@example.com',
-            name: 'Ana',
-            role: 'homeowner',
-            property_ids: ['p1'],
-          },
-          {
-            id: 'u3',
-            email: 'eva@example.com',
-            name: 'Eva',
-            role: 'homeowner',
-            property_ids: ['p9'],
-          },
-          {
-            id: 'u4',
-            email: 'luis@example.com',
-            name: 'Luis',
-            role: 'manager',
-            property_ids: [],
-          },
-        ],
-      },
       '/v1/checklists/c1/complete': {
         status: 200,
-        body: { ...OPEN, completed_at: '2026-11-20T18:00:00Z' },
+        body: {
+          ...OPEN,
+          completed_at: '2026-11-20T18:00:00Z',
+          emailed_to: ['ana@example.com'],
+        },
       },
     })
     renderSignedIn(<ChecklistRun checklistId="c1" />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Finish checklist' }))
-    const dialog = await screen.findByRole('dialog')
-    // The owner of this property is ticked; one of another property isn't offered.
-    await waitFor(() =>
-      expect(within(dialog).getByLabelText('Ana').getAttribute('data-state')).toBe(
-        'checked',
-      ),
-    )
-    expect(within(dialog).queryByLabelText('Eva')).toBeNull()
-    expect(within(dialog).queryByText('To')).toBeNull()
-    await userEvent.type(
-      within(dialog).getByPlaceholderText('email@example.com'),
-      'guest@example.com',
-    )
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Finish and send' }))
 
-    await waitFor(() =>
-      expect(toastSuccess).toHaveBeenCalledWith('Checklist finished, sent to 2 people'),
-    )
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Checklist finished'))
     expect(
-      calls.find((call) => call.path === '/v1/checklists/c1/complete')?.body,
-    ).toEqual({
-      recipients: ['ana@example.com', 'guest@example.com'],
+      calls.find((call) => call.path === '/v1/checklists/c1/complete'),
+    ).toMatchObject({
+      method: 'POST',
+      body: undefined,
     })
-    expect(push).toHaveBeenCalledWith('/checklists')
+    // It stays, frozen, as what was sent.
+    expect(await screen.findByText('Check-in · 1 of 2 · finished')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Finish checklist' })).toBeNull()
   })
 
   it('is read only for a homeowner', async () => {

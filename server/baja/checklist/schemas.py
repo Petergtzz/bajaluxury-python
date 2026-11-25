@@ -1,9 +1,10 @@
 import datetime as dt
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from baja.models import ChecklistType
+from baja.recipient.schemas import RecipientSchema, RecipientUpdate
 
 Description = Field(min_length=1, max_length=2000)
 
@@ -60,6 +61,7 @@ class ChecklistSchema(BaseModel):
     created_at: dt.datetime
     completed_at: dt.datetime | None
     emailed_to: list[str]
+    emailed_cc: list[str]
     items: list[ChecklistItemSchema]
 
 
@@ -77,9 +79,21 @@ class ChecklistItemUpdate(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
-class ChecklistComplete(BaseModel):
+class ChecklistPropertySchema(BaseModel):
+    """A property, and who hears about the checklists completed there."""
+
+    property_id: UUID
+    property_name: str
+    recipients: list[RecipientSchema]
+
+
+class ChecklistRecipientsUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    recipients: list[EmailStr] = Field(
-        min_length=1, description="Who is emailed its report."
+    recipients: list[RecipientUpdate] = Field(
+        max_length=50,
+        description=(
+            "Replaces who hears about it. Each must be able to see the property, and "
+            "at least one is `to`. Empty is nobody: the company's owners still do."
+        ),
     )

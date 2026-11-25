@@ -1,13 +1,15 @@
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import Select, func, select, update
+from sqlalchemy.orm import joinedload, selectinload
 
 from baja.authz.filters import visible_properties
 from baja.kit.repository import RepositoryBase
+from baja.kit.utils import utc_now
 from baja.models import (
     Checklist,
     ChecklistItem,
+    ChecklistRecipient,
     ChecklistTemplateItem,
     ChecklistType,
     User,
@@ -83,3 +85,32 @@ class ChecklistItemRepository(RepositoryBase[ChecklistItem]):
                 ChecklistItem.checklist_id == checklist_id, ChecklistItem.id == item_id
             )
         )
+
+
+class ChecklistRecipientRepository(RepositoryBase[ChecklistRecipient]):
+    model = ChecklistRecipient
+
+    async def list_for(
+        self, property_id: UUID | None = None
+    ) -> list[ChecklistRecipient]:
+        """Every property's, or one property's, with who each one is."""
+        statement = self.get_base_statement().options(
+            joinedload(ChecklistRecipient.user)
+        )
+        if property_id is not None:
+            statement = statement.where(ChecklistRecipient.property_id == property_id)
+        return await self.get_all(statement)
+
+    async def replace(
+        self, property_id: UUID, recipients: list[ChecklistRecipient]
+    ) -> None:
+        await self.session.execute(
+            update(ChecklistRecipient)
+            .where(
+                ChecklistRecipient.property_id == property_id,
+                ChecklistRecipient.deleted_at.is_(None),
+            )
+            .values(deleted_at=utc_now())
+        )
+        self.session.add_all(recipients)
+        await self.session.flush()

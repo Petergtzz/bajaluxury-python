@@ -1,22 +1,34 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from uuid import UUID
 
 from baja.exceptions import BajaError, Conflict, ResourceNotFound
 from baja.kit.db.postgres import AsyncReadSession, AsyncSession
 from baja.kit.utils import utc_now
-from baja.models import Checklist, ChecklistItem, ChecklistTemplateItem, User
+from baja.models import (
+    Checklist,
+    ChecklistItem,
+    ChecklistRecipient,
+    ChecklistTemplateItem,
+    Property,
+    RecipientKind,
+    User,
+)
+from baja.property.repository import PropertyRepository
 from baja.property.service import property as property_service
+from baja.recipient.service import check_recipients
 from baja.worker import enqueue_job
 
 from .repository import (
     ChecklistItemRepository,
+    ChecklistRecipientRepository,
     ChecklistRepository,
     TemplateItemRepository,
 )
 from .schemas import (
-    ChecklistComplete,
     ChecklistCreate,
     ChecklistItemUpdate,
+    ChecklistRecipientsUpdate,
     TemplateItemCreate,
     TemplateItemUpdate,
     TemplateOrder,
@@ -162,20 +174,24 @@ class ChecklistService:
         return await self._reloaded(session, user, checklist)
 
     async def complete(
-        self,
-        session: AsyncSession,
-        user: User,
-        checklist: Checklist,
-        checklist_complete: ChecklistComplete,
+        self, session: AsyncSession, user: User, checklist: Checklist
     ) -> Checklist:
-        """Freezes it and emails its report, after the request commits."""
+        """
+        Freezes it and emails its report, after the request commits, to its
+        property's recipients as they are now: changing them later changes
+        who hears about the next one, not who heard about this one.
+        """
         if checklist.completed_at is not None:
             raise ChecklistCompleted()
+        recipients = await ChecklistRecipientRepository.from_session(session).list_for(
+            checklist.property_id
+        )
         await ChecklistRepository.from_session(session).update(
             checklist,
             {
                 "completed_at": utc_now(),
-                "emailed_to": list(dict.fromkeys(checklist_complete.recipients)),
+                "emailed_to": _emails(recipients, RecipientKind.to),
+                "emailed_cc": _emails(recipients, RecipientKind.cc),
             },
         )
         enqueue_job(SEND_REPORT, str(checklist.id))
@@ -194,5 +210,54 @@ class ChecklistService:
         return reloaded
 
 
+@dataclass(frozen=True)
+class PropertyRecipients:
+    property: Property
+    recipients: list[ChecklistRecipient]
+
+
+class ChecklistRecipientService:
+    async def list(
+        self, session: AsyncReadSession, user: User
+    ) -> list[PropertyRecipients]:
+        """Every active property, with who hears about its checklists."""
+        properties = await PropertyRepository.from_session(session).list_visible(
+            user, is_archived=False
+        )
+        by_property: dict[UUID, list[ChecklistRecipient]] = {}
+        for recipient in await ChecklistRecipientRepository.from_session(
+            session
+        ).list_for():
+            by_property.setdefault(recipient.property_id, []).append(recipient)
+        return [
+            PropertyRecipients(property, by_property.get(property.id, []))
+            for property in properties
+        ]
+
+    async def set(
+        self,
+        session: AsyncSession,
+        user: User,
+        property_id: UUID,
+        update: ChecklistRecipientsUpdate,
+    ) -> PropertyRecipients:
+        property = await property_service.get_open(session, user, property_id)
+        chosen = await check_recipients(session, property, update.recipients)
+        repository = ChecklistRecipientRepository.from_session(session)
+        await repository.replace(
+            property.id,
+            [
+                ChecklistRecipient(property_id=property.id, user_id=user_id, kind=kind)
+                for user_id, kind in chosen.items()
+            ],
+        )
+        return PropertyRecipients(property, await repository.list_for(property.id))
+
+
+def _emails(recipients: list[ChecklistRecipient], kind: RecipientKind) -> list[str]:
+    return [r.user.email for r in recipients if r.kind == kind]
+
+
 checklist_template = TemplateService()
 checklist = ChecklistService()
+checklist_recipients = ChecklistRecipientService()

@@ -11,19 +11,22 @@ from baja.kit.db.postgres import AsyncReadSession, AsyncSession
 from baja.models import Checklist, ChecklistTemplateItem, User
 from baja.postgres import get_db_read_session, get_db_session
 from baja.property.service import PropertyArchived
+from baja.recipient.service import RecipientsInvalid, to_schemas
 
 from .schemas import (
-    ChecklistComplete,
     ChecklistCreate,
     ChecklistItemUpdate,
+    ChecklistPropertySchema,
+    ChecklistRecipientsUpdate,
     ChecklistSchema,
     TemplateItemCreate,
     TemplateItemSchema,
     TemplateItemUpdate,
     TemplateOrder,
 )
-from .service import ChecklistCompleted, OrderInvalid
+from .service import ChecklistCompleted, OrderInvalid, PropertyRecipients
 from .service import checklist as checklist_service
+from .service import checklist_recipients as recipient_service
 from .service import checklist_template as template_service
 
 router = APIRouter(tags=["checklists"])
@@ -107,6 +110,50 @@ async def delete_template_item(
     await template_service.delete(session, item)
 
 
+def _recipients_schema(view: PropertyRecipients) -> ChecklistPropertySchema:
+    return ChecklistPropertySchema(
+        property_id=view.property.id,
+        property_name=view.property.name,
+        recipients=to_schemas(view.recipients),
+    )
+
+
+@router.get(
+    "/checklists/properties",
+    response_model=list[ChecklistPropertySchema],
+    responses=Errors,
+)
+async def list_checklist_properties(
+    user: ManageUser, session: AsyncReadSession = Depends(get_db_read_session)
+) -> list[ChecklistPropertySchema]:
+    """Every active property, with who hears about its checklists."""
+    return [
+        _recipients_schema(view) for view in await recipient_service.list(session, user)
+    ]
+
+
+@router.put(
+    "/checklists/properties/{property_id}",
+    response_model=ChecklistPropertySchema,
+    responses={
+        **Errors,
+        **NotFound,
+        409: {"model": PropertyArchived.schema()},
+        422: {"model": RecipientsInvalid.schema()},
+    },
+)
+async def set_checklist_recipients(
+    property_id: UUID,
+    update: ChecklistRecipientsUpdate,
+    user: ManageUser,
+    session: AsyncSession = Depends(get_db_session),
+) -> ChecklistPropertySchema:
+    """Replaces who hears about the property's checklists; nobody is allowed."""
+    return _recipients_schema(
+        await recipient_service.set(session, user, property_id, update)
+    )
+
+
 @router.get("/checklists/", response_model=list[ChecklistSchema], responses=Errors)
 async def list_checklists(
     user: ReadUser,
@@ -171,15 +218,12 @@ async def update_checklist_item(
 )
 async def complete_checklist(
     checklist_id: UUID,
-    checklist_complete: ChecklistComplete,
     user: ManageUser,
     session: AsyncSession = Depends(get_db_session),
 ) -> Checklist:
-    """Freezes it and emails its report to the recipients."""
+    """Freezes it and emails its report to its property's recipients."""
     checklist = await checklist_service.get(session, user, checklist_id)
-    return await checklist_service.complete(
-        session, user, checklist, checklist_complete
-    )
+    return await checklist_service.complete(session, user, checklist)
 
 
 @router.delete(

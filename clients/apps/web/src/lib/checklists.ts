@@ -1,4 +1,4 @@
-import type { Checklist, ChecklistType } from '@/lib/api/types'
+import type { Checklist, ChecklistProperty, ChecklistType } from '@/lib/api/types'
 import { groupConsecutive, todayIn } from '@/lib/format'
 
 /** The three lists a property is walked with, in the order a stay runs. */
@@ -44,4 +44,14 @@ export const describeChecklist = (checklist: Checklist): string => {
   const [first, ...rest] = checklist.emailed_to
   if (!first) return kind
   return `${kind} · sent to ${first}${rest.length > 0 ? ` and ${rest.length} more` : ''}`
+}
+
+/** What a property's row says under its name on the Properties tab. */
+export const describeWatchers = (watchers: ChecklistProperty): string => {
+  const to = watchers.recipients.filter((one) => one.kind === 'to')
+  const cc = watchers.recipients.length - to.length
+  if (watchers.recipients.length === 0) return 'Nobody hears about it'
+  const names = to.map((one) => one.name ?? one.email).join(', ')
+  const copied = cc === 0 ? '' : `, and ${cc} copied`
+  return `${names || `${to.length} addressed`}${copied}`
 }

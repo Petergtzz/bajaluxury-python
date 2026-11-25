@@ -20,7 +20,6 @@ export function RecipientPicker({
   onToggle,
   loading,
   disabled,
-  addressed = true,
 }: {
   /** Everybody who can see the property. */
   choices: Member[]
@@ -29,8 +28,6 @@ export function RecipientPicker({
   onToggle: (userId: string) => void
   loading?: boolean
   disabled?: boolean
-  /** Says To or Cc beside each person; off where everyone is addressed alike. */
-  addressed?: boolean
 }) {
   // A ticked row says exactly what saving would do - an owner being ticked is
   // what turns everybody else into a copy. An unticked row says what the
@@ -42,10 +39,7 @@ export function RecipientPicker({
   // Only worth saying where there was an owner to tick: otherwise it explains
   // a choice nobody made.
   const straight =
-    addressed &&
-    picked.length > 0 &&
-    !picked.some(isHomeowner) &&
-    choices.some(isHomeowner)
+    picked.length > 0 && !picked.some(isHomeowner) && choices.some(isHomeowner)
 
   return (
     <>
@@ -67,17 +61,15 @@ export function RecipientPicker({
           return (
             <FieldRow key={member.user_id} label={recipientName(member)}>
               <span className="flex items-center gap-3">
-                {addressed && (
-                  <span
-                    className={
-                      ticked
-                        ? 'text-sm text-muted-foreground'
-                        : 'text-sm text-muted-foreground/60'
-                    }
-                  >
-                    {kind === 'to' ? 'To' : 'Cc'}
-                  </span>
-                )}
+                <span
+                  className={
+                    ticked
+                      ? 'text-sm text-muted-foreground'
+                      : 'text-sm text-muted-foreground/60'
+                  }
+                >
+                  {kind === 'to' ? 'To' : 'Cc'}
+                </span>
                 <Checkbox
                   aria-label={recipientName(member)}
                   checked={ticked}

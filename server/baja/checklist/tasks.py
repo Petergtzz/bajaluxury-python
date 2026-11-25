@@ -52,17 +52,18 @@ async def send_checklist_report(checklist_id: str) -> None:
             unchecked=[item for item in checklist.items if not item.is_checked],
             company=company.name,
         )
-        recipients = {email.lower() for email in checklist.emailed_to}
+        owners = await UserRepository.from_session(session).list_owner_emails()
+        # The company's owners hear about every checklist: copied blind, or
+        # addressed when the property names nobody.
+        to = tuple(checklist.emailed_to) or tuple(owners)
+        if not to:
+            return
+        named = {email.lower() for email in (*to, *checklist.emailed_cc)}
         await get_email_sender().send(
             Email(
-                to=tuple(checklist.emailed_to),
-                bcc=tuple(
-                    email
-                    for email in await UserRepository.from_session(
-                        session
-                    ).list_owner_emails()
-                    if email.lower() not in recipients
-                ),
+                to=to,
+                cc=tuple(checklist.emailed_cc),
+                bcc=tuple(email for email in owners if email.lower() not in named),
                 subject=f"{title} · {property.name}",
                 html=html,
                 text=text,

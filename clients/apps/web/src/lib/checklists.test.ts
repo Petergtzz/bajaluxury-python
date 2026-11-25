@@ -21,6 +21,7 @@ const checklist = (patch: Partial<Checklist> = {}): Checklist => ({
   created_at: '2026-11-20T15:00:00Z',
   completed_at: null,
   emailed_to: [],
+  emailed_cc: [],
   items: [item(true), item(false), item(true)],
   ...patch,
 })

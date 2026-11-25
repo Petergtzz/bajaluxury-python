@@ -3,16 +3,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from baja.models import RecipientKind, SendStatus
+from baja.models import SendStatus
+from baja.recipient.schemas import RecipientSchema, RecipientUpdate
 
 DEFAULT_SEND_DAY = 2
-
-
-class ReportRecipientSchema(BaseModel):
-    user_id: UUID
-    email: str
-    name: str | None
-    kind: RecipientKind = Field(description="Addressed to them, or copied to them.")
 
 
 class ReportSchema(BaseModel):
@@ -26,15 +20,8 @@ class ReportSchema(BaseModel):
     send_day: int = Field(
         description="Day of the month it goes out, in the month after the one it covers."
     )
-    recipients: list[ReportRecipientSchema]
+    recipients: list[RecipientSchema]
     last_sent_at: dt.datetime | None
-
-
-class RecipientUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    user_id: UUID
-    kind: RecipientKind
 
 
 class ReportUpdate(BaseModel):

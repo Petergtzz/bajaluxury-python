@@ -20,6 +20,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from baja.kit.db.models import RecordModel
 from baja.kit.extensions.sqlalchemy import StringEnum, enum_check
 
+from .property_report import RecipientKind
+from .user import User
+
 
 class ChecklistType(StrEnum):
     check_in = "check_in"
@@ -67,6 +70,10 @@ class Checklist(RecordModel):
     emailed_to: Mapped[list[str]] = mapped_column(
         ARRAY(String(320)), nullable=False, default=list, server_default=text("'{}'")
     )
+    emailed_cc: Mapped[list[str]] = mapped_column(
+        ARRAY(String(320)), nullable=False, default=list, server_default=text("'{}'")
+    )
+    """Who it went to, as its property's recipients were when it was completed."""
 
     items: Mapped[list[ChecklistItem]] = relationship(
         "ChecklistItem",
@@ -94,3 +101,34 @@ class ChecklistItem(RecordModel):
     checked_at: Mapped[dt.datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, default=None
     )
+
+
+class ChecklistRecipient(RecordModel):
+    """Someone who hears about every checklist completed at a property."""
+
+    __tablename__ = "checklist_recipients"
+    __table_args__ = (
+        Index(
+            "ix_checklist_recipients_property_user",
+            "property_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        CheckConstraint(enum_check("kind", RecipientKind), name="kind"),
+    )
+
+    property_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("properties.id", ondelete="cascade"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="cascade"), nullable=False, index=True
+    )
+    kind: Mapped[RecipientKind] = mapped_column(
+        StringEnum(RecipientKind, length=2), nullable=False
+    )
+
+    user: Mapped[User] = relationship(User, lazy="raise")

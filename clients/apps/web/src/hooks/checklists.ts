@@ -8,6 +8,7 @@ export const checklistKeys = {
   list: ['checklists', 'list'] as const,
   one: (checklistId: string) => ['checklists', 'one', checklistId] as const,
   templates: ['checklists', 'templates'] as const,
+  properties: ['checklists', 'properties'] as const,
 }
 
 /** Every walk the caller can see, newest first. */
@@ -80,15 +81,14 @@ export const useSetChecklistItem = (checklistId: string) => {
   })
 }
 
-/** Freezes the walk and emails its report to the people chosen. */
+/** Freezes the walk and emails its report to its property's recipients. */
 export const useCompleteChecklist = (checklistId: string) => {
   const settle = useSettle(checklistId)
   return useMutation({
-    mutationFn: (recipients: string[]) =>
+    mutationFn: () =>
       unwrap(
         api.POST('/v1/checklists/{checklist_id}/complete', {
           params: { path: { checklist_id: checklistId } },
-          body: { recipients },
         }),
       ),
     onSuccess: settle,
@@ -105,5 +105,34 @@ export const useDeleteChecklist = () => {
         }),
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: checklistKeys.all }),
+  })
+}
+
+/** Every property, with who hears about the checklists finished there. */
+export const useChecklistProperties = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryKey: checklistKeys.properties,
+    queryFn: () => unwrap(api.GET('/v1/checklists/properties')),
+  })
+
+export const useSaveChecklistRecipients = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      propertyId,
+      recipients,
+    }: {
+      propertyId: string
+      recipients: schemas['RecipientUpdate'][]
+    }) =>
+      unwrap(
+        api.PUT('/v1/checklists/properties/{property_id}', {
+          params: { path: { property_id: propertyId } },
+          body: { recipients },
+        }),
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: checklistKeys.properties }),
   })
 }

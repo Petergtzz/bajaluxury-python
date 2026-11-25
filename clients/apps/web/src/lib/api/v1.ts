@@ -178,6 +178,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/checklists/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Checklist Properties
+         * @description Every active property, with who hears about its checklists.
+         */
+        get: operations["list_checklist_properties_v1_checklists_properties_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/checklists/properties/{property_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Checklist Recipients
+         * @description Replaces who hears about the property's checklists; nobody is allowed.
+         */
+        put: operations["set_checklist_recipients_v1_checklists_properties__property_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/checklists/{checklist_id}": {
         parameters: {
             query?: never;
@@ -207,7 +247,7 @@ export interface paths {
         put?: never;
         /**
          * Complete Checklist
-         * @description Freezes it and emails its report to the recipients.
+         * @description Freezes it and emails its report to its property's recipients.
          */
         post: operations["complete_checklist_v1_checklists__checklist_id__complete_post"];
         delete?: never;
@@ -879,14 +919,6 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** ChecklistComplete */
-        ChecklistComplete: {
-            /**
-             * Recipients
-             * @description Who is emailed its report.
-             */
-            recipients: string[];
-        };
         /** ChecklistCompleted */
         ChecklistCompleted: {
             /**
@@ -935,6 +967,29 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /**
+         * ChecklistPropertySchema
+         * @description A property, and who hears about the checklists completed there.
+         */
+        ChecklistPropertySchema: {
+            /**
+             * Property Id
+             * Format: uuid
+             */
+            property_id: string;
+            /** Property Name */
+            property_name: string;
+            /** Recipients */
+            recipients: components["schemas"]["RecipientSchema"][];
+        };
+        /** ChecklistRecipientsUpdate */
+        ChecklistRecipientsUpdate: {
+            /**
+             * Recipients
+             * @description Replaces who hears about it. Each must be able to see the property, and at least one is `to`. Empty is nobody: the company's owners still do.
+             */
+            recipients: components["schemas"]["RecipientUpdate"][];
+        };
         /** ChecklistSchema */
         ChecklistSchema: {
             /** Completed At */
@@ -946,6 +1001,8 @@ export interface components {
             created_at: string;
             /** Created By Id */
             created_by_id: string | null;
+            /** Emailed Cc */
+            emailed_cc: string[];
             /** Emailed To */
             emailed_to: string[];
             /**
@@ -1590,6 +1647,20 @@ export interface components {
          * @enum {string}
          */
         RecipientKind: "to" | "cc";
+        /** RecipientSchema */
+        RecipientSchema: {
+            /** Email */
+            email: string;
+            /** @description Addressed to them, or copied to them. */
+            kind: components["schemas"]["RecipientKind"];
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /** RecipientUpdate */
         RecipientUpdate: {
             kind: components["schemas"]["RecipientKind"];
@@ -1708,20 +1779,6 @@ export interface components {
              */
             error: "ReportIsOff";
         };
-        /** ReportRecipientSchema */
-        ReportRecipientSchema: {
-            /** Email */
-            email: string;
-            /** @description Addressed to them, or copied to them. */
-            kind: components["schemas"]["RecipientKind"];
-            /** Name */
-            name: string | null;
-            /**
-             * User Id
-             * Format: uuid
-             */
-            user_id: string;
-        };
         /**
          * ReportSchema
          * @description A property and the monthly statement it sends. Every active property has
@@ -1738,7 +1795,7 @@ export interface components {
             /** Property Name */
             property_name: string;
             /** Recipients */
-            recipients: components["schemas"]["ReportRecipientSchema"][];
+            recipients: components["schemas"]["RecipientSchema"][];
             /**
              * Send Day
              * @description Day of the month it goes out, in the month after the one it covers.
@@ -2798,6 +2855,115 @@ export interface operations {
             };
         };
     };
+    list_checklist_properties_v1_checklists_properties_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistPropertySchema"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+        };
+    };
+    set_checklist_recipients_v1_checklists_properties__property_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChecklistRecipientsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistPropertySchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotFound"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyArchived"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipientsInvalid"];
+                };
+            };
+        };
+    };
     get_checklist_v1_checklists__checklist_id__get: {
         parameters: {
             query?: never;
@@ -2921,11 +3087,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChecklistComplete"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

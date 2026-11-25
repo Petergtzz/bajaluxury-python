@@ -1,7 +1,13 @@
 from baja.kit.db.models import Model, RecordModel
 
 from .api_token import ApiToken
-from .checklist import Checklist, ChecklistItem, ChecklistTemplateItem, ChecklistType
+from .checklist import (
+    Checklist,
+    ChecklistItem,
+    ChecklistRecipient,
+    ChecklistTemplateItem,
+    ChecklistType,
+)
 from .company import Company, Currency
 from .guest_expense import GuestExpense
 from .invoice import Invoice, InvoiceLine
@@ -24,6 +30,7 @@ __all__ = [
     "ApiToken",
     "Checklist",
     "ChecklistItem",
+    "ChecklistRecipient",
     "ChecklistTemplateItem",
     "ChecklistType",
     "Company",
