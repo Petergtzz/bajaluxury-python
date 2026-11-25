@@ -101,8 +101,10 @@ def test_the_app_declares_every_job_it_may_queue() -> None:
         [
             sys.executable,
             "-c",
-            "import baja.app; from baja.worker import broker; "
-            "print(' '.join(sorted(broker.get_declared_actors())))",
+            (
+                "import baja.app; from baja.worker import broker; "
+                "print(' '.join(sorted(broker.get_declared_actors())))"
+            ),
         ],
         capture_output=True,
         text=True,
