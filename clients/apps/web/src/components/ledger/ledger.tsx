@@ -19,14 +19,13 @@ import { getErrorMessage } from '@/lib/api/errors'
 import type { Transaction } from '@/lib/api/types'
 import { counted, sentence, todayIn } from '@/lib/format'
 import {
-  customRange,
   type LedgerFilters,
   METHODS,
   parseFilters,
   serializeFilters,
   toTransactionQuery,
 } from '@/lib/ledger/filters'
-import { DEFAULT_PERIOD, getPeriodLabel } from '@/lib/ledger/period'
+import { customRange, DEFAULT_PERIOD, getPeriodLabel } from '@/lib/period'
 
 import { CHIP, FilterField, FilterSelect, FiltersChip, PeriodChip } from './filter-chips'
 import { LedgerSummary } from './ledger-summary'

@@ -36,16 +36,18 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <header className="flex min-h-11 flex-wrap items-start justify-between gap-x-6 gap-y-4">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-bold tracking-tight text-neutral-900 sm:text-[34px] dark:text-neutral-100">
+    // The action stays on the title's line, a phone's too; what the page is
+    // for goes under both.
+    <header>
+      <div className="flex min-h-11 items-start justify-between gap-x-6 gap-y-4">
+        <h1 className="min-w-0 text-3xl font-bold tracking-tight text-neutral-900 sm:text-[34px] dark:text-neutral-100">
           {title}
         </h1>
-        {description && (
-          <p className="mt-2 text-[15px] text-muted-foreground">{description}</p>
-        )}
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {description && (
+        <p className="mt-2 text-[15px] text-muted-foreground">{description}</p>
+      )}
     </header>
   )
 }

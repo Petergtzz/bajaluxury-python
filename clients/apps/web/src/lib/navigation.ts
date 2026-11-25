@@ -1,4 +1,10 @@
-import { type LucideIcon, Scale, WalletCards } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  type LucideIcon,
+  ReceiptText,
+  Scale,
+  WalletCards,
+} from 'lucide-react'
 
 export type NavLink = { title: string; href: string; icon: LucideIcon }
 
@@ -10,7 +16,15 @@ export type NavSection = NavLink & {
 /** The sidebar, for what someone with these rights may open. */
 export function getNavSections({ manages }: { manages: boolean }): NavSection[] {
   return [
-    { title: 'Transactions', href: '/transactions', icon: WalletCards },
+    {
+      title: 'Activity',
+      href: '/transactions',
+      icon: ArrowLeftRight,
+      items: [
+        { title: 'Transactions', href: '/transactions', icon: WalletCards },
+        { title: 'Guest expenses', href: '/guest-expenses', icon: ReceiptText },
+      ],
+    },
     { title: manages ? 'Balances' : 'Balance', href: '/balances', icon: Scale },
   ]
 }

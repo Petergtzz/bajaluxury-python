@@ -277,6 +277,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/guest-expenses/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summarize Guest Expenses
+         * @description What the same filters list, counted and added up across every page.
+         */
+        get: operations["summarize_guest_expenses_v1_guest_expenses_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/guest-expenses/{guest_expense_id}": {
         parameters: {
             query?: never;
@@ -1063,6 +1083,21 @@ export interface components {
             property_id: string;
             /** Source */
             source: string;
+        };
+        /**
+         * GuestExpenseSummary
+         * @description What the listed guest expenses add up to, across every page.
+         */
+        GuestExpenseSummary: {
+            /**
+             * Billed Total
+             * @description The part an invoice already bills.
+             */
+            billed_total: number;
+            /** Count */
+            count: number;
+            /** Total */
+            total: number;
         };
         /** GuestExpenseUpdate */
         GuestExpenseUpdate: {
@@ -3040,6 +3075,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertyArchived"] | components["schemas"]["GuestExpenseDeleted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summarize_guest_expenses_v1_guest_expenses_summary_get: {
+        parameters: {
+            query?: {
+                property_id?: string | null;
+                /** @description Ignoring case. */
+                category?: string | null;
+                /** @description From this day on. */
+                start_date?: string | null;
+                /** @description Up to and including. */
+                end_date?: string | null;
+                /** @description Only billed (`true`) or not yet billed (`false`) ones. */
+                invoiced?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestExpenseSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
                 };
             };
             /** @description Validation Error */

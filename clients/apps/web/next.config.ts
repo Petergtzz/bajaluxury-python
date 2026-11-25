@@ -15,6 +15,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // A second app beside a running `next dev` (a smoke test) builds into its own folder.
+  distDir: process.env.BAJA_DIST_DIR ?? '.next',
   poweredByHeader: false,
   // Dev is opened at 127.0.0.1, where the API sets its cookie; Next would
   // treat it as another origin than localhost and refuse it the hot reload.

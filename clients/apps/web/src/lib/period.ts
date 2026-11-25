@@ -59,3 +59,37 @@ export const PERIOD_NAMES: Record<Period, string> = {
   all: 'All time',
   custom: 'Custom',
 }
+
+/** A period as the address carries it: custom days only with a custom period. */
+export type PeriodFilter = { period: Period; from: string; to: string }
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** The period from the address; nonsense, or days that end before they start, is the default. */
+export function readPeriod(params: URLSearchParams): PeriodFilter {
+  const from = params.get('from') ?? ''
+  const to = params.get('to') ?? ''
+  const asked = params.get('period')
+  const period = PERIODS.includes(asked as Period) ? (asked as Period) : DEFAULT_PERIOD
+  const custom = period === 'custom' && DATE.test(from) && DATE.test(to) && from <= to
+  if (period === 'custom' && !custom) return { period: DEFAULT_PERIOD, from: '', to: '' }
+  return { period, from: custom ? from : '', to: custom ? to : '' }
+}
+
+/** Writes the period into the address, leaving it out at its default. */
+export function writePeriod(params: URLSearchParams, filter: PeriodFilter): void {
+  if (filter.period !== DEFAULT_PERIOD) params.set('period', filter.period)
+  if (filter.period === 'custom') {
+    params.set('from', filter.from)
+    params.set('to', filter.to)
+  }
+}
+
+export const customRange = (filter: PeriodFilter): Range | undefined =>
+  filter.period === 'custom' ? { from: filter.from, to: filter.to } : undefined
+
+/** The API's dates for a period, today being the company's. */
+export function periodQuery(filter: PeriodFilter, today: string) {
+  const range = getRange(filter.period, today, customRange(filter))
+  return range ? { start_date: range.from, end_date: range.to } : {}
+}

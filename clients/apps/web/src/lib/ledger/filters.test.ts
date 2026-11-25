@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseFilters, serializeFilters, toTransactionQuery } from './filters'
-import { getPeriodLabel, getRange } from './period'
+import { getPeriodLabel, getRange } from '@/lib/period'
 
 const parse = (address: string) => parseFilters(new URLSearchParams(address))
 

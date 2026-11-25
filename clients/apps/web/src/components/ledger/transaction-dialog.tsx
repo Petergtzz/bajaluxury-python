@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { DeleteAction } from '@/components/delete-action'
 import {
   AmountField,
   FieldRow,
@@ -83,7 +83,6 @@ export function TransactionDialog({
   const create = useCreateTransaction()
   const update = useUpdateTransaction()
   const remove = useDeleteTransaction()
-  const [confirming, setConfirming] = useState(false)
   const open_ = properties.filter((p) => !p.is_archived)
   const form = useForm<Values>({
     defaultValues: transaction
@@ -299,40 +298,13 @@ export function TransactionDialog({
                 {form.formState.isSubmitting && <Spinner />}
                 {transaction ? 'Save changes' : 'Record transaction'}
               </Button>
-              {transaction &&
-                (confirming ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Delete it for good?</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="font-semibold text-destructive"
-                      onClick={destroy}
-                      disabled={remove.isPending}
-                    >
-                      Delete
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirming(false)}
-                    >
-                      Keep
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="font-semibold text-destructive"
-                    onClick={() => setConfirming(true)}
-                  >
-                    Delete transaction
-                  </Button>
-                ))}
+              {transaction && (
+                <DeleteAction
+                  label="Delete transaction"
+                  busy={remove.isPending}
+                  onDelete={destroy}
+                />
+              )}
             </div>
           )}
         </form>

@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatRange } from '@/lib/format'
-import { PERIOD_NAMES, type Period, PERIODS, type Range } from '@/lib/ledger/period'
+import { PERIOD_NAMES, type Period, PERIODS, type Range } from '@/lib/period'
 import { cn } from '@/lib/utils'
 
 /** A filter people change all the time, as a chip that says what it is set to. */
