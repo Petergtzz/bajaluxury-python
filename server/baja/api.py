@@ -13,7 +13,6 @@ from baja.report.endpoints import router as report_router
 from baja.shortcut.endpoints import router as shortcut_router
 from baja.statement.endpoints import router as statement_router
 from baja.user.endpoints import router as user_router
-from baja.utilities.endpoints import router as utilities_router
 
 router = APIRouter(prefix="/v1")
 router.include_router(auth_router)
@@ -29,4 +28,3 @@ router.include_router(report_router)
 router.include_router(shortcut_router)
 router.include_router(statement_router)
 router.include_router(user_router)
-router.include_router(utilities_router)

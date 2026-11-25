@@ -526,26 +526,6 @@ export interface paths {
         patch: operations["update_recurring_charge_v1_recurring_charges__recurring_charge_id__patch"];
         trace?: never;
     };
-    "/v1/reports/buckets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Buckets
-         * @description Every kind of bill a report can show, in the order a concept is sorted.
-         */
-        get: operations["list_buckets_v1_reports_buckets_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/reports/properties/": {
         parameters: {
             query?: never;
@@ -659,61 +639,6 @@ export interface paths {
          * @description The statement exactly as it was sent, not one made again from today's ledger.
          */
         get: operations["get_sent_statement_v1_reports_sends__send_id__statement_pdf_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/reports/utilities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Utilities
-         * @description What went to each kind of bill, month by month: the utilities breakdown
-         *     reads the totals, the tracker the counts.
-         */
-        get: operations["utilities_v1_reports_utilities_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/reports/utilities.pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Utilities Pdf */
-        get: operations["utilities_pdf_v1_reports_utilities_pdf_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/reports/utilities.xlsx": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Utilities Excel */
-        get: operations["utilities_excel_v1_reports_utilities_xlsx_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -922,23 +847,6 @@ export interface components {
              * @constant
              */
             error: "BadRequest";
-        };
-        /** BucketSchema */
-        BucketSchema: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-        };
-        /** BucketTotal */
-        BucketTotal: {
-            /**
-             * Count
-             * @description How many expenses: the tracker's figure.
-             */
-            count: number;
-            /** Total */
-            total: number;
         };
         /** CannotChangeYourself */
         CannotChangeYourself: {
@@ -2282,20 +2190,6 @@ export interface components {
              */
             error: "Unauthorized";
         };
-        /** UnknownBuckets */
-        UnknownBuckets: {
-            /**
-             * Detail
-             * @description Message for people, may change.
-             */
-            detail: string;
-            /**
-             * Error
-             * @description Stable error code to branch on in code.
-             * @constant
-             */
-            error: "UnknownBuckets";
-        };
         /** UserSchema */
         UserSchema: {
             /**
@@ -2316,59 +2210,6 @@ export interface components {
         UserUpdate: {
             /** Name */
             name?: string | null;
-        };
-        /** UtilitiesMonth */
-        UtilitiesMonth: {
-            /** Buckets */
-            buckets: {
-                [key: string]: components["schemas"]["BucketTotal"];
-            };
-            /**
-             * Month
-             * @description `YYYY-MM`.
-             */
-            month: string;
-            /** Total */
-            total: number;
-        };
-        /**
-         * UtilitiesReport
-         * @description What went to each kind of bill, month by month.
-         */
-        UtilitiesReport: {
-            /** Buckets */
-            buckets: components["schemas"]["BucketSchema"][];
-            currency: components["schemas"]["Currency"];
-            /**
-             * End
-             * Format: date
-             */
-            end: string;
-            /** Exchange Rate */
-            exchange_rate: string | null;
-            /** Grand Total */
-            grand_total: number;
-            /**
-             * Months
-             * @description Every month the period touches, even an empty one.
-             */
-            months: components["schemas"]["UtilitiesMonth"][];
-            /**
-             * Property Id
-             * @description Null: every property visible.
-             */
-            property_id: string | null;
-            /** Property Name */
-            property_name: string | null;
-            /**
-             * Start
-             * Format: date
-             */
-            start: string;
-            /** Totals */
-            totals: {
-                [key: string]: components["schemas"]["BucketTotal"];
-            };
         };
         /** ValidationError */
         ValidationError: {
@@ -4642,26 +4483,6 @@ export interface operations {
             };
         };
     };
-    list_buckets_v1_reports_buckets_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BucketSchema"][];
-                };
-            };
-        };
-    };
     list_reports_v1_reports_properties__get: {
         parameters: {
             query?: never;
@@ -5039,207 +4860,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    utilities_v1_reports_utilities_get: {
-        parameters: {
-            query: {
-                /** @description The first day, included. */
-                start: string;
-                /** @description The last day, included. */
-                end: string;
-                /** @description Every property the caller may see, if left out. */
-                property_id?: string | null;
-                /** @description Which kinds of bill, in this order. See /v1/reports/buckets. */
-                buckets?: string[];
-                /** @description Converted at the company's rate. The company's if left out. */
-                currency?: components["schemas"]["Currency"] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UtilitiesReport"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Unauthorized"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotPermitted"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceNotFound"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PeriodInvalid"] | components["schemas"]["UnknownBuckets"];
-                };
-            };
-        };
-    };
-    utilities_pdf_v1_reports_utilities_pdf_get: {
-        parameters: {
-            query: {
-                /** @description The first day, included. */
-                start: string;
-                /** @description The last day, included. */
-                end: string;
-                /** @description Every property the caller may see, if left out. */
-                property_id?: string | null;
-                /** @description Which kinds of bill, in this order. See /v1/reports/buckets. */
-                buckets?: string[];
-                /** @description Converted at the company's rate. The company's if left out. */
-                currency?: components["schemas"]["Currency"] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/pdf": unknown;
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Unauthorized"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotPermitted"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceNotFound"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PeriodInvalid"] | components["schemas"]["UnknownBuckets"];
-                };
-            };
-        };
-    };
-    utilities_excel_v1_reports_utilities_xlsx_get: {
-        parameters: {
-            query: {
-                /** @description The first day, included. */
-                start: string;
-                /** @description The last day, included. */
-                end: string;
-                /** @description Every property the caller may see, if left out. */
-                property_id?: string | null;
-                /** @description Which kinds of bill, in this order. See /v1/reports/buckets. */
-                buckets?: string[];
-                /** @description Converted at the company's rate. The company's if left out. */
-                currency?: components["schemas"]["Currency"] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Unauthorized"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotPermitted"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceNotFound"];
-                };
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PeriodInvalid"] | components["schemas"]["UnknownBuckets"];
                 };
             };
         };
