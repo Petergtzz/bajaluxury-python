@@ -11,13 +11,35 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { User } from '@/lib/api/types'
+import { cn } from '@/lib/utils'
 
-const initials = (user: User) =>
+const initials = (user: { name: string | null; email: string }) =>
   (user.name ?? user.email)
     .split(/\s+/)
     .slice(0, 2)
     .map((word) => word.charAt(0).toUpperCase())
     .join('')
+
+/** Someone's initials in a circle: the face of a row about a person. */
+export function UserAvatar({
+  user,
+  className,
+}: {
+  user: { name: string | null; email: string }
+  className?: string
+}) {
+  return (
+    <span
+      className={cn(
+        'flex size-10 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-black dark:bg-neutral-700 dark:text-white',
+        className,
+      )}
+      aria-hidden
+    >
+      {initials(user)}
+    </span>
+  )
+}
 
 /** Who is logged in, at the foot of the sidebar; their menu opens from it. */
 export function AccountButton({ user, onLogout }: { user: User; onLogout: () => void }) {

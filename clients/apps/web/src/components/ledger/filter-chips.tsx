@@ -18,6 +18,14 @@ import { PERIOD_NAMES, type Period, PERIODS, type Range } from '@/lib/period'
 import { cn } from '@/lib/utils'
 
 /** A filter people change all the time, as a chip that says what it is set to. */
+/**
+ * The row the chips sit in: it scrolls sideways on a phone, and keeps 4px of
+ * room around them, given back by its margin, so the focus ring of a chip
+ * isn't clipped by the scrolling.
+ */
+export const CHIP_ROW =
+  'no-scrollbar -m-1 flex items-center gap-2 p-1 max-sm:-mx-4 max-sm:px-4'
+
 export const CHIP =
   'h-11 w-auto shrink-0 gap-1.5 rounded-full border-0 bg-neutral-100 px-4 text-[15px] font-semibold text-neutral-900 shadow-none hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 [&_svg]:text-neutral-500'
 

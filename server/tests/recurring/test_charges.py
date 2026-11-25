@@ -303,6 +303,21 @@ async def test_changes_apply_from_the_next_charge(
     ]
 
 
+async def test_one_field_changes_alone(
+    client: AsyncClient, login: LoginFixture, user: User, save_fixture: SaveFixture
+) -> None:
+    campo = await create_property(save_fixture, name="Campo 9")
+    charge = await create_charge(save_fixture, campo, day_of_month=15)
+    await login(user)
+
+    response = await client.patch(
+        f"/v1/recurring-charges/{charge.id}", json={"amount": "9000"}
+    )
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["amount"], response.json()["day_of_month"]) == (9000.0, 15)
+
+
 async def test_list_and_delete(
     client: AsyncClient, login: LoginFixture, user: User, save_fixture: SaveFixture
 ) -> None:

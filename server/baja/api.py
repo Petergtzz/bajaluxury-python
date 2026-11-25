@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from baja.api_token.endpoints import router as api_token_router
 from baja.auth.endpoints import router as auth_router
 from baja.checklist.endpoints import router as checklist_router
 from baja.company.endpoints import router as company_router
@@ -15,6 +16,7 @@ from baja.statement.endpoints import router as statement_router
 from baja.user.endpoints import router as user_router
 
 router = APIRouter(prefix="/v1")
+router.include_router(api_token_router)
 router.include_router(auth_router)
 router.include_router(checklist_router)
 router.include_router(company_router)

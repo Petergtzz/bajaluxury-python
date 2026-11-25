@@ -8,7 +8,7 @@ from baja.authz.dependencies import Authorize
 from baja.authz.permission import Permission
 from baja.exceptions import NotPermitted, ResourceNotFound, Unauthorized
 from baja.kit.db.postgres import AsyncReadSession, AsyncSession
-from baja.models import Checklist, ChecklistTemplateItem, User
+from baja.models import Checklist, ChecklistTemplateItem, ChecklistType, User
 from baja.postgres import get_db_read_session, get_db_session
 from baja.property.service import PropertyArchived
 from baja.recipient.service import RecipientsInvalid, to_schemas
@@ -19,12 +19,10 @@ from .schemas import (
     ChecklistPropertySchema,
     ChecklistRecipientsUpdate,
     ChecklistSchema,
-    TemplateItemCreate,
     TemplateItemSchema,
-    TemplateItemUpdate,
-    TemplateOrder,
+    TemplateUpdate,
 )
-from .service import ChecklistCompleted, OrderInvalid, PropertyRecipients
+from .service import ChecklistCompleted, PropertyRecipients, TemplateInvalid
 from .service import checklist as checklist_service
 from .service import checklist_recipients as recipient_service
 from .service import checklist_template as template_service
@@ -54,60 +52,23 @@ async def list_template_items(
     return await template_service.list(session)
 
 
-@router.post(
-    "/checklist-templates/",
-    response_model=TemplateItemSchema,
-    status_code=201,
-    responses=Errors,
-)
-async def create_template_item(
-    item_create: TemplateItemCreate,
-    user: ManageUser,
-    session: AsyncSession = Depends(get_db_session),
-) -> ChecklistTemplateItem:
-    """Added at the end of its type."""
-    return await template_service.create(session, item_create)
-
-
 @router.put(
-    "/checklist-templates/order",
+    "/checklist-templates/{type}",
     response_model=list[TemplateItemSchema],
-    responses={**Errors, 422: {"model": OrderInvalid.schema()}},
+    responses={**Errors, 422: {"model": TemplateInvalid.schema()}},
 )
-async def reorder_template_items(
-    order: TemplateOrder,
+async def replace_template(
+    type: ChecklistType,
+    update: TemplateUpdate,
     user: ManageUser,
     session: AsyncSession = Depends(get_db_session),
 ) -> Sequence[ChecklistTemplateItem]:
-    return await template_service.reorder(session, order)
-
-
-@router.patch(
-    "/checklist-templates/{item_id}",
-    response_model=TemplateItemSchema,
-    responses={**Errors, **NotFound},
-)
-async def update_template_item(
-    item_id: UUID,
-    item_update: TemplateItemUpdate,
-    user: ManageUser,
-    session: AsyncSession = Depends(get_db_session),
-) -> ChecklistTemplateItem:
-    """Checklists already started keep the wording they were given."""
-    item = await template_service.get(session, item_id)
-    return await template_service.update(session, item, item_update)
-
-
-@router.delete(
-    "/checklist-templates/{item_id}", status_code=204, responses={**Errors, **NotFound}
-)
-async def delete_template_item(
-    item_id: UUID,
-    user: ManageUser,
-    session: AsyncSession = Depends(get_db_session),
-) -> None:
-    item = await template_service.get(session, item_id)
-    await template_service.delete(session, item)
+    """
+    A type's whole list, in order: items sent with their id are kept and
+    reworded, those without are added, and those left out are removed.
+    Checklists already started keep the wording they were given.
+    """
+    return await template_service.replace(session, type, update)
 
 
 def _recipients_schema(view: PropertyRecipients) -> ChecklistPropertySchema:

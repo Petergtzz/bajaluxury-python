@@ -10,6 +10,7 @@ from baja.models import (
     ChecklistItem,
     ChecklistRecipient,
     ChecklistTemplateItem,
+    ChecklistType,
     Property,
     RecipientKind,
     User,
@@ -29,9 +30,7 @@ from .schemas import (
     ChecklistCreate,
     ChecklistItemUpdate,
     ChecklistRecipientsUpdate,
-    TemplateItemCreate,
-    TemplateItemUpdate,
-    TemplateOrder,
+    TemplateUpdate,
 )
 
 SEND_REPORT = "checklist.send_report"
@@ -42,10 +41,10 @@ class ChecklistCompleted(Conflict):
         super().__init__("This checklist is completed: its report stands as sent.")
 
 
-class OrderInvalid(BajaError):
+class TemplateInvalid(BajaError):
     def __init__(self) -> None:
         super().__init__(
-            "The order must name every item of the type once, and only those.", 422
+            "Every item sent with an id must be on this list, and only once.", 422
         )
 
 
@@ -53,52 +52,35 @@ class TemplateService:
     async def list(self, session: AsyncReadSession) -> list[ChecklistTemplateItem]:
         return await TemplateItemRepository.from_session(session).list_all()
 
-    async def get(
-        self, session: AsyncReadSession, item_id: UUID
-    ) -> ChecklistTemplateItem:
-        item = await TemplateItemRepository.from_session(session).get_by_id(item_id)
-        if item is None:
-            raise ResourceNotFound()
-        return item
-
-    async def create(
-        self, session: AsyncSession, item_create: TemplateItemCreate
-    ) -> ChecklistTemplateItem:
-        """At the end of its type's list."""
-        repository = TemplateItemRepository.from_session(session)
-        return await repository.create(
-            ChecklistTemplateItem(
-                type=item_create.type,
-                description=item_create.description,
-                position=await repository.next_position(item_create.type),
-            )
-        )
-
-    async def update(
-        self,
-        session: AsyncSession,
-        item: ChecklistTemplateItem,
-        item_update: TemplateItemUpdate,
-    ) -> ChecklistTemplateItem:
-        """Checklists already started keep the wording they were given."""
-        return await TemplateItemRepository.from_session(session).update(
-            item, {"description": item_update.description}
-        )
-
-    async def delete(self, session: AsyncSession, item: ChecklistTemplateItem) -> None:
-        await TemplateItemRepository.from_session(session).soft_delete(item)
-
-    async def reorder(
-        self, session: AsyncSession, order: TemplateOrder
+    async def replace(
+        self, session: AsyncSession, type: ChecklistType, update: TemplateUpdate
     ) -> Sequence[ChecklistTemplateItem]:
+        """One type's whole list, kept, reworded, added to and removed from at once."""
         repository = TemplateItemRepository.from_session(session)
-        items = {item.id: item for item in await repository.list_all(order.type)}
-        if len(order.item_ids) != len(items) or set(order.item_ids) != set(items):
-            raise OrderInvalid()
-        for position, item_id in enumerate(order.item_ids, start=1):
-            items[item_id].position = position
+        current = {item.id: item for item in await repository.list_all(type)}
+        sent = [item.id for item in update.items if item.id is not None]
+        if len(sent) != len(set(sent)) or not set(sent) <= set(current):
+            raise TemplateInvalid()
+        for item_id in set(current) - set(sent):
+            current[item_id].deleted_at = utc_now()
+        kept: list[ChecklistTemplateItem] = []
+        for position, item in enumerate(update.items, start=1):
+            if item.id is None:
+                kept.append(
+                    await repository.create(
+                        ChecklistTemplateItem(
+                            type=type, description=item.description, position=position
+                        ),
+                        flush=False,
+                    )
+                )
+            else:
+                existing = current[item.id]
+                existing.description = item.description
+                existing.position = position
+                kept.append(existing)
         await session.flush()
-        return [items[item_id] for item_id in order.item_ids]
+        return kept
 
 
 class ChecklistService:

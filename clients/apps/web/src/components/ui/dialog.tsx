@@ -12,7 +12,8 @@ export const DialogClose = DialogPrimitive.Close
 
 /**
  * A card over the page, centred and as tall as it needs; past the screen's
- * height it scrolls rather than reaching off it.
+ * height it scrolls rather than reaching off it. What is in it stands 16px
+ * apart, as in Doorstep, so a title never sits on what follows it.
  */
 export function DialogContent({
   className,
@@ -24,7 +25,7 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-white/60 backdrop-blur-[1px] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 dark:bg-black/60" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[24rem] -translate-x-1/2 -translate-y-1/2 flex-col overflow-y-auto rounded-3xl border border-border bg-background p-6 shadow-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[24rem] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-3xl border border-border bg-background p-6 shadow-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           className,
         )}
         {...props}

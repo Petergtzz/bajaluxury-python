@@ -19,6 +19,8 @@ class Permission(StrEnum):
     checklists_manage = "checklists:manage"
     invoices_manage = "invoices:manage"
     reports_manage = "reports:manage"
+    api_tokens_manage = "api_tokens:manage"
+    api_tokens_manage_all = "api_tokens:manage_all"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -38,6 +40,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.checklists_manage,
             Permission.invoices_manage,
             Permission.reports_manage,
+            Permission.api_tokens_manage,
         }
     ),
     Role.homeowner: frozenset(
@@ -70,6 +73,8 @@ DENIED: dict[Permission, str] = {
     Permission.checklists_manage: "Only owners and managers can fill in checklists.",
     Permission.invoices_manage: "Only owners and managers can see and send invoices.",
     Permission.reports_manage: "Only owners and managers can set up and send reports.",
+    Permission.api_tokens_manage: "Only owners and managers connect devices.",
+    Permission.api_tokens_manage_all: "Only an owner sees everyone's devices.",
 }
 
 

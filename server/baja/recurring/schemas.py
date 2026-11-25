@@ -6,9 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from baja.kit.schemas import Amount, Money
 from baja.models import PaymentMethod
 
-DayOfMonth = Field(
-    ge=1, le=31, description="31, or any day a month lacks, means its last day."
-)
+DAY_OF_MONTH = "31, or any day a month lacks, means its last day."
+DayOfMonth = Field(ge=1, le=31, description=DAY_OF_MONTH)
 
 
 class RecurringChargeSchema(BaseModel):
@@ -55,4 +54,6 @@ class RecurringChargeUpdate(BaseModel):
     category: str | None = Field(default=None, min_length=1, max_length=64)
     concept: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
-    day_of_month: int | None = DayOfMonth
+    day_of_month: int | None = Field(
+        default=None, ge=1, le=31, description=DAY_OF_MONTH
+    )

@@ -51,3 +51,30 @@ export function PageHeader({
     </header>
   )
 }
+
+/** A heading inside a page, with what it covers and its action: a settings tab. */
+export function SectionHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string
+  description?: ReactNode
+  actions?: ReactNode
+}) {
+  return (
+    // As the page's own header: the action stays on the title's line, a
+    // phone's too, and what the section is for goes under both.
+    <header>
+      <div className="flex items-center justify-between gap-6">
+        <h2 className="min-w-0 text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+          {title}
+        </h2>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </div>
+      {description && (
+        <p className="mt-1.5 text-[15px] text-muted-foreground">{description}</p>
+      )}
+    </header>
+  )
+}

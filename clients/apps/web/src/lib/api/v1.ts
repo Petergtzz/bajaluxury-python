@@ -21,6 +21,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/api-tokens/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Api Tokens
+         * @description The caller's devices; an owner's sees everyone's.
+         */
+        get: operations["list_api_tokens_v1_api_tokens__get"];
+        put?: never;
+        /**
+         * Create Api Token
+         * @description A token for one of your devices. The token is in this answer and nowhere else.
+         */
+        post: operations["create_api_token_v1_api_tokens__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/api-tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Api Token
+         * @description It stops working at once; the device needs a new one.
+         */
+        delete: operations["revoke_api_token_v1_api_tokens__token_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/login-code/authenticate": {
         parameters: {
             query?: never;
@@ -105,27 +149,6 @@ export interface paths {
          */
         get: operations["list_template_items_v1_checklist_templates__get"];
         put?: never;
-        /**
-         * Create Template Item
-         * @description Added at the end of its type.
-         */
-        post: operations["create_template_item_v1_checklist_templates__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/checklist-templates/order": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Reorder Template Items */
-        put: operations["reorder_template_items_v1_checklist_templates_order_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -133,7 +156,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/checklist-templates/{item_id}": {
+    "/v1/checklist-templates/{type}": {
         parameters: {
             query?: never;
             header?: never;
@@ -141,17 +164,18 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Replace Template
+         * @description A type's whole list, in order: items sent with their id are kept and
+         *     reworded, those without are added, and those left out are removed.
+         *     Checklists already started keep the wording they were given.
+         */
+        put: operations["replace_template_v1_checklist_templates__type__put"];
         post?: never;
-        /** Delete Template Item */
-        delete: operations["delete_template_item_v1_checklist_templates__item_id__delete"];
+        delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Update Template Item
-         * @description Checklists already started keep the wording they were given.
-         */
-        patch: operations["update_template_item_v1_checklist_templates__item_id__patch"];
+        patch?: never;
         trace?: never;
     };
     "/v1/checklists/": {
@@ -293,7 +317,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Patch Company
+         * @description Its name, clock and exchange rate. Only an owner changes them.
+         */
+        patch: operations["patch_company_v1_company_patch"];
         trace?: never;
     };
     "/v1/guest-expenses/": {
@@ -874,6 +902,60 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ApiTokenCreate */
+        ApiTokenCreate: {
+            /** Label */
+            label: string;
+        };
+        /** ApiTokenCreated */
+        ApiTokenCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Label
+             * @description The device it is on, like Ana's iPhone.
+             */
+            label: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /**
+             * Token
+             * @description Shown only now: only its hash is kept.
+             */
+            token: string;
+            /** @description Who it acts as. */
+            user: components["schemas"]["TokenUserSchema"];
+        };
+        /** ApiTokenSchema */
+        ApiTokenSchema: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Label
+             * @description The device it is on, like Ana's iPhone.
+             */
+            label: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** @description Who it acts as. */
+            user: components["schemas"]["TokenUserSchema"];
+        };
         /** BadRequest */
         BadRequest: {
             /**
@@ -1054,6 +1136,24 @@ export interface components {
              * @description Its currency per US dollar.
              */
             usd_exchange_rate: string;
+        };
+        /**
+         * CompanyUpdate
+         * @description The currency stays as it was set: every amount recorded is in it.
+         */
+        CompanyUpdate: {
+            /** Name */
+            name?: string | null;
+            /**
+             * Timezone
+             * @description An IANA zone.
+             */
+            timezone?: string | null;
+            /**
+             * Usd Exchange Rate
+             * @description Its currency per US dollar, for statements in dollars and invoices.
+             */
+            usd_exchange_rate?: number | string | null;
         };
         /**
          * Currency
@@ -1505,20 +1605,6 @@ export interface components {
              */
             error: "NotPermitted";
         };
-        /** OrderInvalid */
-        OrderInvalid: {
-            /**
-             * Detail
-             * @description Message for people, may change.
-             */
-            detail: string;
-            /**
-             * Error
-             * @description Stable error code to branch on in code.
-             * @constant
-             */
-            error: "OrderInvalid";
-        };
         /** Pagination */
         Pagination: {
             /** Max Page */
@@ -1760,7 +1846,7 @@ export interface components {
              * Day Of Month
              * @description 31, or any day a month lacks, means its last day.
              */
-            day_of_month: number | null;
+            day_of_month?: number | null;
             /** Description */
             description?: string | null;
             payment_method?: components["schemas"]["PaymentMethod"] | null;
@@ -2066,11 +2152,19 @@ export interface components {
             payment_method: components["schemas"]["PaymentMethod"] | null;
             type: components["schemas"]["TransactionType"];
         };
-        /** TemplateItemCreate */
-        TemplateItemCreate: {
-            /** Description */
-            description: string;
-            type: components["schemas"]["ChecklistType"];
+        /** TemplateInvalid */
+        TemplateInvalid: {
+            /**
+             * Detail
+             * @description Message for people, may change.
+             */
+            detail: string;
+            /**
+             * Error
+             * @description Stable error code to branch on in code.
+             * @constant
+             */
+            error: "TemplateInvalid";
         };
         /** TemplateItemSchema */
         TemplateItemSchema: {
@@ -2085,19 +2179,35 @@ export interface components {
             position: number;
             type: components["schemas"]["ChecklistType"];
         };
-        /** TemplateItemUpdate */
-        TemplateItemUpdate: {
+        /** TemplateItemWrite */
+        TemplateItemWrite: {
             /** Description */
             description: string;
-        };
-        /** TemplateOrder */
-        TemplateOrder: {
             /**
-             * Item Ids
-             * @description Every item of the type, in the order wanted: no more, no fewer.
+             * Id
+             * @description An item already on the list; none for a new one.
              */
-            item_ids: string[];
-            type: components["schemas"]["ChecklistType"];
+            id?: string | null;
+        };
+        /** TemplateUpdate */
+        TemplateUpdate: {
+            /**
+             * Items
+             * @description The whole list, in the order it is walked.
+             */
+            items: components["schemas"]["TemplateItemWrite"][];
+        };
+        /** TokenUserSchema */
+        TokenUserSchema: {
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string | null;
         };
         /** TooManyRequests */
         TooManyRequests: {
@@ -2320,6 +2430,151 @@ export interface operations {
             };
         };
     };
+    list_api_tokens_v1_api_tokens__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiTokenSchema"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+        };
+    };
+    create_api_token_v1_api_tokens__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiTokenCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiTokenCreated"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_api_token_v1_api_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceNotFound"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     authenticate_login_code_v1_auth_login_code_authenticate_post: {
         parameters: {
             query?: never;
@@ -2517,67 +2772,18 @@ export interface operations {
             };
         };
     };
-    create_template_item_v1_checklist_templates__post: {
+    replace_template_v1_checklist_templates__type__put: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                type: components["schemas"]["ChecklistType"];
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TemplateItemCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TemplateItemSchema"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Unauthorized"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotPermitted"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reorder_template_items_v1_checklist_templates_order_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TemplateOrder"];
+                "application/json": components["schemas"]["TemplateUpdate"];
             };
         };
         responses: {
@@ -2614,125 +2820,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OrderInvalid"];
-                };
-            };
-        };
-    };
-    delete_template_item_v1_checklist_templates__item_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Unauthorized"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotPermitted"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceNotFound"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_template_item_v1_checklist_templates__item_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TemplateItemUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TemplateItemSchema"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Unauthorized"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NotPermitted"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResourceNotFound"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["TemplateInvalid"];
                 };
             };
         };
@@ -3242,6 +3330,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyNotSetUp"];
+                };
+            };
+        };
+    };
+    patch_company_v1_company_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanySchema"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unauthorized"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotPermitted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Service Unavailable */

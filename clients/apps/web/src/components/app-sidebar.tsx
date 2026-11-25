@@ -69,7 +69,7 @@ function Section({
 }) {
   const items = section.items ?? []
   const open = items.some((item) => isCurrent(pathname, item.href))
-  const current = items.length === 0 && isCurrent(pathname, section.href)
+  const current = items.length === 0 && isCurrent(pathname, section.match ?? section.href)
   const Chevron = open ? ChevronUp : ChevronDown
   return (
     <>

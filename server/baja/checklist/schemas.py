@@ -18,25 +18,20 @@ class TemplateItemSchema(BaseModel):
     position: int
 
 
-class TemplateItemCreate(BaseModel):
+class TemplateItemWrite(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    type: ChecklistType
+    id: UUID | None = Field(
+        default=None, description="An item already on the list; none for a new one."
+    )
     description: str = Description
 
 
-class TemplateItemUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    description: str = Description
-
-
-class TemplateOrder(BaseModel):
+class TemplateUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: ChecklistType
-    item_ids: list[UUID] = Field(
-        description="Every item of the type, in the order wanted: no more, no fewer."
+    items: list[TemplateItemWrite] = Field(
+        max_length=200, description="The whole list, in the order it is walked."
     )
 
 

@@ -57,7 +57,7 @@ export function FormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn('gap-4 sm:max-w-md', className)} {...contentProps}>
+      <DialogContent className={cn('sm:max-w-md', className)} {...contentProps}>
         <DialogHeader className="text-left">
           <DialogTitle className="text-base leading-4 font-medium">{title}</DialogTitle>
         </DialogHeader>

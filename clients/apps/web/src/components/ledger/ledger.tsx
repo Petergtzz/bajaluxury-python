@@ -27,7 +27,14 @@ import {
 } from '@/lib/ledger/filters'
 import { customRange, DEFAULT_PERIOD, getPeriodLabel } from '@/lib/period'
 
-import { CHIP, FilterField, FilterSelect, FiltersChip, PeriodChip } from './filter-chips'
+import {
+  CHIP,
+  CHIP_ROW,
+  FilterField,
+  FilterSelect,
+  FiltersChip,
+  PeriodChip,
+} from './filter-chips'
 import { LedgerSummary } from './ledger-summary'
 import { TransactionDialog } from './transaction-dialog'
 import { TransactionsList } from './transactions-list'
@@ -116,7 +123,7 @@ export function Ledger() {
         period={getPeriodLabel(filters.period, today, customRange(filters))}
       />
 
-      <div className="no-scrollbar flex items-center gap-2 max-sm:-mx-4 max-sm:px-4">
+      <div className={CHIP_ROW}>
         <PeriodChip
           key={`${filters.from}${filters.to}`}
           period={filters.period}

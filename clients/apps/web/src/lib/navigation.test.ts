@@ -1,9 +1,13 @@
 import { expect, it } from 'vitest'
 
-import { getNavSections } from './navigation'
+import { getNavSections, getSettingsTabs } from './navigation'
+
+const OWNER = { manages: true, ownsCompany: true }
+const MANAGER = { manages: true, ownsCompany: false }
+const HOMEOWNER = { manages: false, ownsCompany: false }
 
 it('folds the ledgers under Activity, for everyone', () => {
-  const [activity] = getNavSections({ manages: false })
+  const [activity] = getNavSections(HOMEOWNER)
   expect(activity?.items?.map((item) => item.href)).toEqual([
     '/transactions',
     '/guest-expenses',
@@ -11,26 +15,51 @@ it('folds the ledgers under Activity, for everyone', () => {
 })
 
 it('names the balances page for who reads it', () => {
-  const titles = (manages: boolean) => getNavSections({ manages }).map((s) => s.title)
-  expect(titles(true)).toContain('Balances')
-  expect(titles(false)).toContain('Balance')
+  const titles = (can: typeof OWNER) => getNavSections(can).map((s) => s.title)
+  expect(titles(MANAGER)).toContain('Balances')
+  expect(titles(HOMEOWNER)).toContain('Balance')
 })
 
-it('makes Reports one page, with nothing folded under it', () => {
-  const reports = getNavSections({ manages: false }).find((s) => s.title === 'Reports')
-  expect(reports?.href).toBe('/reports')
-  expect(reports?.items).toBeUndefined()
-})
-
-it('shows invoices only to those who send them', () => {
-  const hrefs = (manages: boolean) => getNavSections({ manages }).map((s) => s.href)
-  expect(hrefs(true)).toEqual([
+it('gives those who run the houses invoices and the team', () => {
+  expect(getNavSections(MANAGER).map((s) => s.href)).toEqual([
     '/transactions',
     '/balances',
     '/checklists',
     '/invoices',
     '/reports',
+    '/team/properties',
+    '/settings/options',
   ])
-  expect(hrefs(false)).not.toContain('/invoices')
-  expect(hrefs(false)).toContain('/checklists')
+  const team = getNavSections(MANAGER).find((s) => s.title === 'Team')
+  expect(team?.items?.map((item) => item.href)).toEqual([
+    '/team/properties',
+    '/team/users',
+  ])
+  expect(getNavSections(HOMEOWNER).map((s) => s.href)).toEqual([
+    '/transactions',
+    '/balances',
+    '/checklists',
+    '/reports',
+    '/settings/profile',
+  ])
+})
+
+it('keeps one Settings entry that lands on the first tab someone has', () => {
+  const settings = (can: typeof OWNER) =>
+    getNavSections(can).find((s) => s.title === 'Settings')
+  expect(settings(OWNER)).toMatchObject({ href: '/settings/company', match: '/settings' })
+  expect(settings(HOMEOWNER)?.href).toBe('/settings/profile')
+})
+
+it('lists only the settings someone may change', () => {
+  const titles = (can: typeof OWNER) => getSettingsTabs(can).map((tab) => tab.title)
+  expect(titles(OWNER)).toEqual([
+    'Company',
+    'Options',
+    'Charges',
+    'Connections',
+    'Profile',
+  ])
+  expect(titles(MANAGER)).toEqual(['Options', 'Charges', 'Connections', 'Profile'])
+  expect(titles(HOMEOWNER)).toEqual(['Profile'])
 })

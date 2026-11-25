@@ -229,75 +229,79 @@ async def test_archived_properties_get_no_new_checklists(
     assert response.status_code == 409
 
 
-async def test_managers_edit_the_templates(
+async def test_managers_rewrite_a_template_whole(
     client: AsyncClient, login: LoginFixture, save_fixture: SaveFixture
 ) -> None:
     await template(save_fixture)
     campo = await create_property(save_fixture)
     await login(await create_user(save_fixture, Role.manager))
     started = await start(client, campo.id)
-
-    added = await client.post(
-        "/v1/checklist-templates/",
-        json={"type": "check_in", "description": " Gas tank above 50% "},
+    keys, pool = (
+        i["id"]
+        for i in (await client.get("/v1/checklist-templates/")).json()
+        if i["type"] == "check_in"
     )
-    renamed = await client.patch(
-        f"/v1/checklist-templates/{added.json()['id']}",
-        json={"description": "Gas tank above half"},
+
+    # The pool goes first, the keys are dropped, and the gas is new.
+    saved = await client.put(
+        "/v1/checklist-templates/check_in",
+        json={
+            "items": [
+                {"id": pool, "description": " Pool and jacuzzi are clean "},
+                {"description": "Gas tank above half"},
+            ]
+        },
     )
     listed = (await client.get("/v1/checklist-templates/")).json()
-    check_in = [i for i in listed if i["type"] == "check_in"]
-    ids = [i["id"] for i in check_in]
-    reordered = await client.put(
-        "/v1/checklist-templates/order",
-        json={"type": "check_in", "item_ids": [ids[2], ids[0], ids[1]]},
-    )
-    deleted = await client.delete(f"/v1/checklist-templates/{ids[0]}")
     after = await client.get(f"/v1/checklists/{started['id']}")
     fresh = await start(client, campo.id)
 
-    assert (added.json()["position"], renamed.json()["description"]) == (
-        3,
-        "Gas tank above half",
-    )
-    assert [(i["description"], i["position"]) for i in reordered.json()] == [
-        ("Gas tank above half", 1),
-        ("Keys are in the lockbox", 2),
-        ("Pool is clean", 3),
+    assert [
+        (i["id"] == pool, i["description"], i["position"]) for i in saved.json()
+    ] == [
+        (True, "Pool and jacuzzi are clean", 1),
+        (False, "Gas tank above half", 2),
     ]
-    assert deleted.status_code == 204
-    assert len(after.json()["items"]) == 2  # started ones keep what they had
-    assert [i["description"] for i in fresh["items"]] == [
-        "Gas tank above half",
+    assert keys not in {i["id"] for i in listed}
+    # Other types are untouched, and walks already started keep what they had.
+    assert [i["description"] for i in listed if i["type"] == "weekly"] == [
+        "Run every tap"
+    ]
+    assert [i["description"] for i in after.json()["items"]] == [
+        "Keys are in the lockbox",
         "Pool is clean",
     ]
+    assert [i["description"] for i in fresh["items"]] == [
+        "Pool and jacuzzi are clean",
+        "Gas tank above half",
+    ]
 
 
-@pytest.mark.parametrize(
-    "item_ids",
-    [lambda ids: ids[:1], lambda ids: [*ids, ids[0]], lambda ids: [ids[0], ids[0]]],
-)
-async def test_an_order_names_every_item_once(
+@pytest.mark.parametrize("problem", ["twice", "another type's", "unknown"])
+async def test_a_template_only_keeps_its_own_items_once(
     client: AsyncClient,
     login: LoginFixture,
     user: User,
     save_fixture: SaveFixture,
-    item_ids: Any,
+    problem: str,
 ) -> None:
     await template(save_fixture)
     await login(user)
-    ids = [
-        i["id"]
-        for i in (await client.get("/v1/checklist-templates/")).json()
-        if i["type"] == "check_in"
-    ]
+    listed = (await client.get("/v1/checklist-templates/")).json()
+    check_in = [i["id"] for i in listed if i["type"] == "check_in"]
+    weekly = [i["id"] for i in listed if i["type"] == "weekly"]
+    ids = {
+        "twice": [check_in[0], check_in[0]],
+        "another type's": [weekly[0]],
+        "unknown": ["01a21454-0000-7000-8000-000000000000"],
+    }[problem]
 
     response = await client.put(
-        "/v1/checklist-templates/order",
-        json={"type": "check_in", "item_ids": item_ids(ids)},
+        "/v1/checklist-templates/check_in",
+        json={"items": [{"id": id, "description": "x"} for id in ids]},
     )
 
-    assert (response.status_code, response.json()["error"]) == (422, "OrderInvalid")
+    assert (response.status_code, response.json()["error"]) == (422, "TemplateInvalid")
 
 
 async def test_every_active_property_says_who_hears_about_it(

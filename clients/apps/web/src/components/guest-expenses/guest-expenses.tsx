@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 
 import {
   CHIP,
+  CHIP_ROW,
   FilterField,
   FilterSelect,
   FiltersChip,
@@ -117,7 +118,7 @@ export function GuestExpenses() {
         ]}
       />
 
-      <div className="no-scrollbar flex items-center gap-2 max-sm:-mx-4 max-sm:px-4">
+      <div className={CHIP_ROW}>
         <PeriodChip
           key={`${filters.from}${filters.to}`}
           period={filters.period}

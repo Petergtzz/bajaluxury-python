@@ -164,3 +164,44 @@ export function RowSelect({
 }
 
 export { SelectItem }
+
+/**
+ * A borderless text input whose placeholder stands in for a label.
+ *
+ * Two lines of chrome - a label and a border - removed from every field, which
+ * is most of why these dialogs read as calm.
+ */
+export function PlainInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  disabled,
+  required,
+  autoComplete,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  type?: string
+  disabled?: boolean
+  required?: boolean
+  autoComplete?: string
+}) {
+  return (
+    <input
+      id={id}
+      type={type}
+      aria-label={placeholder}
+      required={required}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={disabled}
+      placeholder={placeholder}
+      autoComplete={autoComplete}
+      className="h-auto w-full bg-transparent py-2 text-base outline-none placeholder:text-muted-foreground disabled:opacity-50"
+    />
+  )
+}

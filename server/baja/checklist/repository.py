@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import Select, func, select, update
+from sqlalchemy import Select, update
 from sqlalchemy.orm import joinedload, selectinload
 
 from baja.authz.filters import visible_properties
@@ -35,15 +35,6 @@ class TemplateItemRepository(RepositoryBase[ChecklistTemplateItem]):
         return await self.get_one_or_none(
             self.get_base_statement().where(ChecklistTemplateItem.id == item_id)
         )
-
-    async def next_position(self, type: ChecklistType) -> int:
-        position = await self.session.scalar(
-            select(func.max(ChecklistTemplateItem.position)).where(
-                ChecklistTemplateItem.type == type,
-                ChecklistTemplateItem.deleted_at.is_(None),
-            )
-        )
-        return (position or 0) + 1
 
 
 class ChecklistRepository(RepositoryBase[Checklist]):

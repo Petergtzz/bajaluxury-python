@@ -17,6 +17,7 @@ export function ListRow({
   trailing,
   label,
   onSelect,
+  menu,
 }: {
   mark: ReactNode
   title: ReactNode
@@ -25,6 +26,8 @@ export function ListRow({
   /** What a screen reader hears for the row's button. */
   label?: string
   onSelect?: () => void
+  /** The "…" at the end of a row that opens nothing, with what can be done to it. */
+  menu?: ReactNode
 }) {
   const content = (
     <>
@@ -60,7 +63,10 @@ export function ListRow({
           />
         </button>
       ) : (
-        <div className={ROW}>{content}</div>
+        <div className={ROW}>
+          {content}
+          {menu && <span className="-mr-2 shrink-0">{menu}</span>}
+        </div>
       )}
     </li>
   )
