@@ -298,3 +298,38 @@ async def test_unknown_payment_methods_are_refused(
 
     assert response.status_code == 422
     assert PaymentMethod.cash in response.text
+
+
+async def test_the_summary_adds_up_what_the_filters_list(
+    client: AsyncClient, login: LoginFixture, save_fixture: SaveFixture
+) -> None:
+    mine = await create_property(save_fixture, name="Campo 9")
+    theirs = await create_property(save_fixture, name="Colinas 21")
+    for property, type, amount, day in [
+        (mine, TransactionType.income, "1000", 1),
+        (mine, TransactionType.expense, "250.50", 2),
+        (mine, TransactionType.expense, "100", 20),
+        (theirs, TransactionType.expense, "999", 2),
+    ]:
+        await create_transaction(
+            save_fixture,
+            property,
+            type=type,
+            amount=amount,
+            date=dt.date(2026, 11, day),
+        )
+    homeowner = await create_user(save_fixture, Role.homeowner)
+    await assign_properties(save_fixture, homeowner, mine)
+    await login(homeowner)
+
+    everything = await client.get("/v1/transactions/summary")
+    early = await client.get(
+        "/v1/transactions/summary", params={"end_date": "2026-11-10", "limit": 1}
+    )
+
+    assert everything.json() == {
+        "count": 3,
+        "income_total": 1000.0,
+        "expense_total": 350.5,
+    }
+    assert early.json() == {"count": 2, "income_total": 1000.0, "expense_total": 250.5}

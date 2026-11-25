@@ -1,4 +1,5 @@
 import datetime as dt
+from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -71,3 +72,23 @@ class PropertyBalance(BaseModel):
     )
     last_income_date: dt.date | None
     last_activity_date: dt.date | None
+
+
+class TransactionSummary(BaseModel):
+    """What the listed transactions add up to, across every page."""
+
+    count: int
+    income_total: Money
+    expense_total: Money
+
+
+@dataclass(frozen=True)
+class TransactionFilters:
+    """What narrows a list of transactions; nothing set lists them all."""
+
+    property_id: UUID | None = None
+    type: TransactionType | None = None
+    payment_method: PaymentMethod | None = None
+    category: str | None = None
+    start_date: dt.date | None = None
+    end_date: dt.date | None = None

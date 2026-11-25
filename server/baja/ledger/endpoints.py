@@ -17,7 +17,9 @@ from baja.property.service import PropertyArchived
 from .schemas import (
     PropertyBalance,
     TransactionCreate,
+    TransactionFilters,
     TransactionSchema,
+    TransactionSummary,
     TransactionUpdate,
 )
 from .service import TransactionDeleted
@@ -38,27 +40,15 @@ Refused: dict[int | str, dict[str, Any]] = {
 }
 
 
-@router.get(
-    "/transactions/",
-    response_model=ListResource[TransactionSchema],
-    responses=Errors,
-)
-async def list_transactions(
-    user: ReadUser,
-    pagination: PaginationParamsQuery,
+def get_filters(
     property_id: UUID | None = None,
     type: TransactionType | None = None,
     payment_method: PaymentMethod | None = None,
     category: str | None = Query(None, description="Ignoring case."),
     start_date: dt.date | None = Query(None, description="From this day on."),
     end_date: dt.date | None = Query(None, description="Up to and including."),
-    session: AsyncReadSession = Depends(get_db_read_session),
-) -> ListResource[TransactionSchema]:
-    """Newest first, from the properties the caller may see."""
-    transactions, count = await ledger_service.list(
-        session,
-        user,
-        pagination=pagination,
+) -> TransactionFilters:
+    return TransactionFilters(
         property_id=property_id,
         type=type,
         payment_method=payment_method,
@@ -66,9 +56,43 @@ async def list_transactions(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+FiltersQuery = Annotated[TransactionFilters, Depends(get_filters)]
+
+
+@router.get(
+    "/transactions/",
+    response_model=ListResource[TransactionSchema],
+    responses=Errors,
+)
+async def list_transactions(
+    user: ReadUser,
+    filters: FiltersQuery,
+    pagination: PaginationParamsQuery,
+    session: AsyncReadSession = Depends(get_db_read_session),
+) -> ListResource[TransactionSchema]:
+    """Newest first, from the properties the caller may see."""
+    transactions, count = await ledger_service.list(
+        session, user, filters, pagination=pagination
+    )
     return ListResource.from_paginated_results(
         [TransactionSchema.model_validate(t) for t in transactions], count, pagination
     )
+
+
+@router.get(
+    "/transactions/summary",
+    response_model=TransactionSummary,
+    responses=Errors,
+)
+async def summarize_transactions(
+    user: ReadUser,
+    filters: FiltersQuery,
+    session: AsyncReadSession = Depends(get_db_read_session),
+) -> TransactionSummary:
+    """What the same filters list, counted and added up across every page."""
+    return await ledger_service.summarize(session, user, filters)
 
 
 @router.post(

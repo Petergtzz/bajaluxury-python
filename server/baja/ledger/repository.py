@@ -7,14 +7,13 @@ from sqlalchemy import ColumnElement, Select, and_, case, func, select
 from baja.authz.filters import visible_properties
 from baja.kit.repository import RepositoryBase
 from baja.models import (
-    PaymentMethod,
     Property,
     Transaction,
     TransactionType,
     User,
 )
 
-from .schemas import PropertyBalance
+from .schemas import PropertyBalance, TransactionFilters, TransactionSummary
 
 # Income adds to a balance, an expense takes from it.
 SIGNED_AMOUNT = case(
@@ -32,34 +31,46 @@ class TransactionRepository(RepositoryBase[Transaction]):
         )
 
     def get_list_statement(
-        self,
-        user: User,
-        *,
-        property_id: UUID | None = None,
-        type: TransactionType | None = None,
-        payment_method: PaymentMethod | None = None,
-        category: str | None = None,
-        start_date: dt.date | None = None,
-        end_date: dt.date | None = None,
+        self, user: User, filters: TransactionFilters
     ) -> Select[Transaction]:
         statement = self.get_visible_statement(user).order_by(
             Transaction.date.desc(), Transaction.created_at.desc()
         )
-        if property_id is not None:
-            statement = statement.where(Transaction.property_id == property_id)
-        if type is not None:
-            statement = statement.where(Transaction.type == type)
-        if payment_method is not None:
-            statement = statement.where(Transaction.payment_method == payment_method)
-        if category is not None:
+        if filters.property_id is not None:
+            statement = statement.where(Transaction.property_id == filters.property_id)
+        if filters.type is not None:
+            statement = statement.where(Transaction.type == filters.type)
+        if filters.payment_method is not None:
             statement = statement.where(
-                func.lower(Transaction.category) == category.lower()
+                Transaction.payment_method == filters.payment_method
             )
-        if start_date is not None:
-            statement = statement.where(Transaction.date >= start_date)
-        if end_date is not None:
-            statement = statement.where(Transaction.date <= end_date)
+        if filters.category is not None:
+            statement = statement.where(
+                func.lower(Transaction.category) == filters.category.lower()
+            )
+        if filters.start_date is not None:
+            statement = statement.where(Transaction.date >= filters.start_date)
+        if filters.end_date is not None:
+            statement = statement.where(Transaction.date <= filters.end_date)
         return statement
+
+    async def summarize(self, statement: Select[Transaction]) -> TransactionSummary:
+        """Counts and sums what `statement` lists."""
+        listed = statement.order_by(None).subquery()
+        income = func.coalesce(
+            func.sum(listed.c.amount).filter(listed.c.type == TransactionType.income),
+            0,
+        )
+        expense = func.coalesce(
+            func.sum(listed.c.amount).filter(listed.c.type == TransactionType.expense),
+            0,
+        )
+        count, income_total, expense_total = (
+            await self.session.execute(select(func.count(), income, expense))
+        ).one()
+        return TransactionSummary(
+            count=count, income_total=income_total, expense_total=expense_total
+        )
 
     async def get_visible(self, user: User, transaction_id: UUID) -> Transaction | None:
         return await self.get_one_or_none(

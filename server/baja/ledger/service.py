@@ -1,4 +1,3 @@
-import datetime as dt
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -17,7 +16,13 @@ from baja.models import (
 from baja.property.service import property as property_service
 
 from .repository import TransactionRepository
-from .schemas import PropertyBalance, TransactionCreate, TransactionUpdate
+from .schemas import (
+    PropertyBalance,
+    TransactionCreate,
+    TransactionFilters,
+    TransactionSummary,
+    TransactionUpdate,
+)
 
 
 class TransactionDeleted(Conflict):
@@ -45,25 +50,21 @@ class LedgerService:
         self,
         session: AsyncReadSession,
         user: User,
+        filters: TransactionFilters,
         *,
         pagination: PaginationParams,
-        property_id: UUID | None = None,
-        type: TransactionType | None = None,
-        payment_method: PaymentMethod | None = None,
-        category: str | None = None,
-        start_date: dt.date | None = None,
-        end_date: dt.date | None = None,
     ) -> tuple[Sequence[Transaction], int]:
         statement = TransactionRepository.from_session(session).get_list_statement(
-            user,
-            property_id=property_id,
-            type=type,
-            payment_method=payment_method,
-            category=category,
-            start_date=start_date,
-            end_date=end_date,
+            user, filters
         )
         return await paginate(session, statement, pagination=pagination)
+
+    async def summarize(
+        self, session: AsyncReadSession, user: User, filters: TransactionFilters
+    ) -> TransactionSummary:
+        """What `list` would list, added up across its pages."""
+        repository = TransactionRepository.from_session(session)
+        return await repository.summarize(repository.get_list_statement(user, filters))
 
     async def get(
         self, session: AsyncReadSession, user: User, transaction_id: UUID
