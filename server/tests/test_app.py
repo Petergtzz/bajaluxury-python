@@ -88,3 +88,26 @@ async def test_jobs_go_out_only_after_a_commit(
     assert sent_jobs == [
         ("email.send_login_code", ("owner@bajaluxurymgmt.com", "sealed"))
     ]
+
+
+def test_the_app_declares_every_job_it_may_queue() -> None:
+    """A request queues jobs by name: the API process must know them all."""
+    import subprocess
+    import sys
+
+    from baja.worker import broker
+
+    declared = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import baja.app; from baja.worker import broker; "
+            "print(' '.join(sorted(broker.get_declared_actors())))",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+
+    assert declared == sorted(broker.get_declared_actors())
+    assert "email.send_login_code" in declared

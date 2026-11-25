@@ -4,6 +4,8 @@ from typing import TypedDict
 
 from fastapi import FastAPI
 
+# Requests queue jobs by name, so every job has to be declared here too.
+from baja import tasks  # noqa: F401
 from baja.api import router as api_router
 from baja.auth.middlewares import AuthSubjectMiddleware
 from baja.exception_handlers import add_exception_handlers

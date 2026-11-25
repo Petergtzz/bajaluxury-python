@@ -80,7 +80,11 @@ _middleware: list[dramatiq.Middleware] = [
 broker: dramatiq.Broker = (
     StubBroker(middleware=_middleware)
     if settings.is_testing()
-    else RedisBroker(url=settings.get_redis_url(), middleware=_middleware)  # type: ignore[no-untyped-call]
+    # Its own namespace: a Redis shared with other apps must not hand their
+    # jobs to this worker, or this app's jobs to theirs.
+    else RedisBroker(  # type: ignore[no-untyped-call]
+        url=settings.get_redis_url(), middleware=_middleware, namespace="baja"
+    )
 )
 dramatiq.set_broker(broker)
 
