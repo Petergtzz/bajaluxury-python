@@ -29,12 +29,18 @@ export function DropdownMenuContent({
 
 export function DropdownMenuItem({
   className,
+  variant = 'default',
   ...props
-}: ComponentProps<typeof MenuPrimitive.Item>) {
+}: ComponentProps<typeof MenuPrimitive.Item> & {
+  /** Red, for what removes something. */
+  variant?: 'default' | 'destructive'
+}) {
   return (
     <MenuPrimitive.Item
       className={cn(
         'flex cursor-default items-center gap-2.5 rounded-xl px-3 py-2.5 text-[15px] outline-none select-none focus:bg-accent [&_svg]:size-4 [&_svg]:text-muted-foreground',
+        variant === 'destructive' &&
+          'text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20',
         className,
       )}
       {...props}

@@ -44,6 +44,13 @@ export function formatDate(value: string): string {
   }).format(new Date(date[0], date[1] - 1, date[2]))
 }
 
+/**
+ * The day a moment fell on where the company is, as formatDate says it. A
+ * timestamp's own date is UTC's, which is tomorrow by the evening in Los Cabos.
+ */
+export const formatMomentDay = (moment: string, timezone: string): string =>
+  formatDate(todayIn(timezone, new Date(moment)))
+
 /** "12 February" over its day's rows, with the year only when it isn't this one. */
 export function formatDayHeading(value: string, today: string): string {
   const date = parts(value)

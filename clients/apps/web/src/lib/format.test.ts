@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   counted,
   formatDate,
+  formatMomentDay,
   formatDayHeading,
   formatMoney,
   formatRange,
@@ -51,4 +52,10 @@ describe('format', () => {
     expect(counted(1, 'property', 'properties')).toBe('1 property')
     expect(counted(5, 'property', 'properties')).toBe('5 properties')
   })
+})
+
+it('says the day a moment fell on where the company is', () => {
+  // 03:00 UTC on the 26th is the evening of the 25th in Los Cabos.
+  expect(formatMomentDay('2026-11-26T03:00:00Z', 'America/Mazatlan')).toBe('25 Nov 2026')
+  expect(formatMomentDay('2026-11-26T03:00:00Z', 'Europe/Madrid')).toBe('26 Nov 2026')
 })

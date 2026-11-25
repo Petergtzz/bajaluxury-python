@@ -15,3 +15,8 @@ export type ManagedUser = schemas['ManagedUserSchema']
 export type RecipientKind = schemas['RecipientKind']
 /** Someone who can log in, as the report screens name them (Doorstep's member). */
 export type Member = ManagedUser & { user_id: string }
+export type Checklist = schemas['ChecklistSchema']
+export type ChecklistItem = schemas['ChecklistItemSchema']
+export type ChecklistType = schemas['ChecklistType']
+export type Invoice = schemas['InvoiceSchema']
+export type GuestExpense = schemas['GuestExpenseSchema']

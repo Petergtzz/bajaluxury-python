@@ -1,9 +1,11 @@
 import {
   ArrowLeftRight,
+  ClipboardCheck,
   FileText,
   type LucideIcon,
   ReceiptText,
   Scale,
+  ScrollText,
   WalletCards,
 } from 'lucide-react'
 
@@ -27,6 +29,9 @@ export function getNavSections({ manages }: { manages: boolean }): NavSection[] 
       ],
     },
     { title: manages ? 'Balances' : 'Balance', href: '/balances', icon: Scale },
+    { title: 'Checklists', href: '/checklists', icon: ClipboardCheck },
+    // Invoices bill guests, which is the company's business, not a homeowner's.
+    ...(manages ? [{ title: 'Invoices', href: '/invoices', icon: ScrollText }] : []),
     { title: 'Reports', href: '/reports', icon: FileText },
   ]
 }

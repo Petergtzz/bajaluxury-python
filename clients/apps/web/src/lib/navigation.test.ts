@@ -21,3 +21,16 @@ it('makes Reports one page, with nothing folded under it', () => {
   expect(reports?.href).toBe('/reports')
   expect(reports?.items).toBeUndefined()
 })
+
+it('shows invoices only to those who send them', () => {
+  const hrefs = (manages: boolean) => getNavSections({ manages }).map((s) => s.href)
+  expect(hrefs(true)).toEqual([
+    '/transactions',
+    '/balances',
+    '/checklists',
+    '/invoices',
+    '/reports',
+  ])
+  expect(hrefs(false)).not.toContain('/invoices')
+  expect(hrefs(false)).toContain('/checklists')
+})

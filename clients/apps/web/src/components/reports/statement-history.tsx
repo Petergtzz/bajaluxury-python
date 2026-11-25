@@ -7,7 +7,8 @@ import { ListRow, RowMark, StatusMeta } from '@/components/list-row'
 import { SettingsListState } from '@/components/settings/settings-list-state'
 import { statementURL, useSentStatements } from '@/hooks/reports'
 import type { SentStatement } from '@/lib/api/types'
-import { formatDate } from '@/lib/format'
+import { useCompany } from '@/components/session-context'
+import { formatMomentDay } from '@/lib/format'
 import { describeSent, monthName } from '@/lib/reports'
 import { groupConsecutive } from '@/lib/format'
 
@@ -50,6 +51,7 @@ export function StatementHistory() {
 }
 
 function StatementRow({ send }: { send: SentStatement }) {
+  const timezone = useCompany().data?.timezone ?? 'America/Mazatlan'
   // The file as it was sent, kept by the API; it opens beside the page.
   const download = () => {
     window.open(statementURL(send.id), '_blank', 'noopener,noreferrer')
@@ -72,7 +74,9 @@ function StatementRow({ send }: { send: SentStatement }) {
       trailing={
         <span className="flex shrink-0 items-center gap-3">
           <span className="text-sm text-muted-foreground">
-            {send.sent_at ? `Sent ${formatDate(send.sent_at)}` : 'Not sent'}
+            {send.sent_at
+              ? `Sent ${formatMomentDay(send.sent_at, timezone)}`
+              : 'Not sent'}
           </span>
           {send.has_statement && (
             <button
