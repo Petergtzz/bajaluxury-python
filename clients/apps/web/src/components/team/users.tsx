@@ -1,6 +1,7 @@
 'use client'
 
 import { Plus } from 'lucide-react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { type FormEvent, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -16,6 +17,7 @@ import {
   SelectItem,
 } from '@/components/dialog-fields'
 import { InputError } from '@/components/input-error'
+import { CHIP, CHIP_ROW, FilterSelect } from '@/components/ledger/filter-chips'
 import { ListHeading } from '@/components/list-heading'
 import { ListRow } from '@/components/list-row'
 import { PageAction, PageHeader } from '@/components/page-header'
@@ -28,7 +30,7 @@ import { useProperties } from '@/hooks/ledger'
 import { useRemoveUser, useSaveUser } from '@/hooks/settings'
 import { useMembers } from '@/hooks/team'
 import { getErrorMessage } from '@/lib/api/errors'
-import type { Member } from '@/lib/api/types'
+import type { Member, Role } from '@/lib/api/types'
 import { counted } from '@/lib/format'
 import {
   ASSIGNABLE_ROLES,
@@ -43,6 +45,13 @@ import {
   toPersonBody,
 } from '@/lib/team'
 
+import {
+  applyUserFilters,
+  parseUserFilters,
+  serializeUserFilters,
+  type UserFilters,
+} from '@/lib/settings/team-filters'
+
 import { PropertyChecklist } from './property-checklist'
 
 /**
@@ -55,9 +64,21 @@ import { PropertyChecklist } from './property-checklist'
 export function Users() {
   const user = useUser()
   const { ownsCompany } = usePermissions()
+  const router = useRouter()
+  const pathname = usePathname()
+  const filters = parseUserFilters(useSearchParams())
+  const setFilters = (patch: Partial<UserFilters>) => {
+    const address = serializeUserFilters({ ...filters, ...patch })
+    router.replace(address ? `${pathname}?${address}` : pathname, { scroll: false })
+  }
   const members = useMembers()
   const properties = useProperties().data ?? []
-  const items = members.data ?? []
+  const everyone = members.data ?? []
+  const items = applyUserFilters(everyone, filters)
+  // The houses someone may own: those in use, and one already picked.
+  const houses = properties.filter(
+    (one) => !one.is_archived || one.id === filters.property,
+  )
   const names = (ids: string[]) =>
     ids.map((id) => properties.find((property) => property.id === id)?.name ?? '')
   const [dialog, setDialog] = useState<{ person: Member | null; key: number } | null>(
@@ -84,12 +105,45 @@ export function Users() {
         }
       />
 
+      <div className={CHIP_ROW}>
+        <FilterSelect
+          label="Role"
+          value={filters.role}
+          onChange={(role) => setFilters({ role: role as Role | '' })}
+          allLabel="All roles"
+          className={CHIP}
+        >
+          {(['owner', 'manager', 'homeowner'] as const).map((role) => (
+            <SelectItem key={role} value={role}>
+              {ROLE_LABELS[role]}s
+            </SelectItem>
+          ))}
+        </FilterSelect>
+        <FilterSelect
+          label="Homeowners of"
+          value={filters.property}
+          onChange={(property) => setFilters({ property })}
+          allLabel="All properties"
+          className={CHIP}
+        >
+          {houses.map((house) => (
+            <SelectItem key={house.id} value={house.id}>
+              {house.name}
+            </SelectItem>
+          ))}
+        </FilterSelect>
+      </div>
+
       <ul className="flex flex-col">
         <ListHeading>{counted(items.length, 'person', 'people')}</ListHeading>
 
         {items.length === 0 && (
           <li className="py-10 text-center text-sm text-muted-foreground">
-            <SettingsListState query={members} empty="Nobody yet." />
+            {everyone.length > 0 ? (
+              'Nobody matches these filters.'
+            ) : (
+              <SettingsListState query={members} empty="Nobody yet." />
+            )}
           </li>
         )}
 

@@ -9,6 +9,13 @@ import { renderSignedIn, stubRoutes } from '@/test/render'
 import { Properties } from './properties'
 import { Users } from './users'
 
+const replace = vi.fn()
+let search = ''
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace }),
+  usePathname: () => '/team',
+  useSearchParams: () => new URLSearchParams(search),
+}))
 const toastSuccess = vi.fn()
 vi.mock('sonner', () => ({
   toast: { success: (m: string) => toastSuccess(m), error: vi.fn() },
@@ -17,6 +24,8 @@ vi.mock('sonner', () => ({
 afterEach(() => {
   vi.unstubAllGlobals()
   toastSuccess.mockReset()
+  replace.mockReset()
+  search = ''
 })
 
 const COLINAS = {
@@ -54,16 +63,28 @@ const USERS = {
 }
 
 describe('Properties', () => {
-  it('lists the houses in use first, with what their balance pays', async () => {
+  it('starts on the houses managed today, with what their balance pays', async () => {
     stubRoutes(PROPERTIES)
     renderSignedIn(<Properties />)
 
     await screen.findByText('Colinas 21')
-    expect(screen.getByText('2 properties')).toBeTruthy()
+    expect(screen.getByText('1 property')).toBeTruthy()
     expect(screen.getAllByRole('listitem').map((row) => row.textContent)).toEqual([
       expect.stringContaining('Colinas 21Calle 21, Cabo · Balance pays cash'),
-      expect.stringContaining('SoleilBalance pays cashArchived'),
     ])
+
+    await userEvent.click(screen.getByLabelText('Which properties'))
+    await userEvent.click(await screen.findByRole('option', { name: 'Archived' }))
+    expect(replace).toHaveBeenCalledWith('/team?status=archived', { scroll: false })
+  })
+
+  it('shows the archived ones when the address asks', async () => {
+    search = 'status=archived'
+    stubRoutes(PROPERTIES)
+    renderSignedIn(<Properties />)
+
+    expect(await screen.findByText('Soleil')).toBeTruthy()
+    expect(screen.queryByText('Colinas 21')).toBeNull()
   })
 
   it('adds a house that pays debit card expenses from its balance too', async () => {
@@ -123,6 +144,25 @@ describe('Users', () => {
     expect(await screen.findByText('Homeowner · Colinas 21')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Pedro, Owner' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Ana, Homeowner' })).toBeTruthy()
+  })
+
+  it('narrows to the homeowners of one house', async () => {
+    search = 'property=p1'
+    stubRoutes({ ...PROPERTIES, ...USERS })
+    renderSignedIn(<Users />)
+
+    expect(await screen.findByText('Ana')).toBeTruthy()
+    expect(screen.getByText('1 person')).toBeTruthy()
+    expect(screen.queryByText('Luis')).toBeNull()
+  })
+
+  it('narrows to a role from its chip', async () => {
+    stubRoutes({ ...PROPERTIES, ...USERS })
+    renderSignedIn(<Users />)
+
+    await userEvent.click(await screen.findByLabelText('Role'))
+    await userEvent.click(await screen.findByRole('option', { name: 'Managers' }))
+    expect(replace).toHaveBeenCalledWith('/team?role=manager', { scroll: false })
   })
 
   it('shows a manager the team, and nothing to change', async () => {

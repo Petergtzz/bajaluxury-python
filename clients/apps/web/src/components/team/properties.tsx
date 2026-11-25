@@ -1,17 +1,20 @@
 'use client'
 
 import { House, Plus } from 'lucide-react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { type FormEvent, useState } from 'react'
 import { toast } from 'sonner'
 
 import { DialogActions, TextAction } from '@/components/dialog-actions'
 import { FieldRow, Panel, PlainInput } from '@/components/dialog-fields'
 import { InputError } from '@/components/input-error'
+import { CHIP, CHIP_ROW, FilterSelect } from '@/components/ledger/filter-chips'
 import { ListHeading } from '@/components/list-heading'
 import { ListRow, RowMark } from '@/components/list-row'
 import { PageAction, PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { SelectItem } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import { useProperties } from '@/hooks/ledger'
@@ -30,6 +33,12 @@ import {
 } from '@/lib/settings/properties'
 
 import { SettingsListState } from '@/components/settings/settings-list-state'
+import {
+  applyPropertyStatus,
+  parsePropertyStatus,
+  type PropertyStatus,
+  serializePropertyStatus,
+} from '@/lib/settings/team-filters'
 
 /**
  * The houses: what each is called, where it is, and which payments come out of
@@ -37,6 +46,13 @@ import { SettingsListState } from '@/components/settings/settings-list-state'
  * deleted: its ledger stays.
  */
 export function Properties() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const status = parsePropertyStatus(useSearchParams())
+  const setStatus = (next: PropertyStatus) => {
+    const address = serializePropertyStatus(next)
+    router.replace(address ? `${pathname}?${address}` : pathname, { scroll: false })
+  }
   const properties = useProperties()
   const [dialog, setDialog] = useState<{
     property: Property | null
@@ -47,7 +63,8 @@ export function Properties() {
     setDialog({ property, key: Date.now() })
     setOpen(true)
   }
-  const items = sortForSettings(properties.data ?? [])
+  const all = properties.data ?? []
+  const items = sortForSettings(applyPropertyStatus(all, status))
 
   return (
     <>
@@ -62,15 +79,36 @@ export function Properties() {
         }
       />
 
+      <div className={CHIP_ROW}>
+        <FilterSelect
+          label="Which properties"
+          value={status}
+          onChange={(value) => setStatus(value as PropertyStatus)}
+          className={CHIP}
+        >
+          <SelectItem value="active">Active</SelectItem>
+          <SelectItem value="archived">Archived</SelectItem>
+          <SelectItem value="all">Active and archived</SelectItem>
+        </FilterSelect>
+      </div>
+
       <ul className="flex flex-col">
         <ListHeading>{counted(items.length, 'property', 'properties')}</ListHeading>
 
         {items.length === 0 && (
           <li className="py-10 text-center text-sm text-muted-foreground">
-            <SettingsListState
-              query={properties}
-              empty="No properties yet. Add one to start recording transactions against it."
-            />
+            {all.length > 0 ? (
+              status === 'archived' ? (
+                'No property is archived.'
+              ) : (
+                'Every property is archived.'
+              )
+            ) : (
+              <SettingsListState
+                query={properties}
+                empty="No properties yet. Add one to start recording transactions against it."
+              />
+            )}
           </li>
         )}
 
