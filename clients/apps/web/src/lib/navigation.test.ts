@@ -6,8 +6,14 @@ const OWNER = { manages: true, ownsCompany: true }
 const MANAGER = { manages: true, ownsCompany: false }
 const HOMEOWNER = { manages: false, ownsCompany: false }
 
+it('opens on the dashboard, for everyone', () => {
+  for (const can of [OWNER, HOMEOWNER]) {
+    expect(getNavSections(can)[0]?.href).toBe('/dashboard')
+  }
+})
+
 it('folds the ledgers under Activity, for everyone', () => {
-  const [activity] = getNavSections(HOMEOWNER)
+  const activity = getNavSections(HOMEOWNER).find((s) => s.title === 'Activity')
   expect(activity?.items?.map((item) => item.href)).toEqual([
     '/transactions',
     '/guest-expenses',
@@ -22,6 +28,7 @@ it('names the balances page for who reads it', () => {
 
 it('gives those who run the houses invoices and the team', () => {
   expect(getNavSections(MANAGER).map((s) => s.href)).toEqual([
+    '/dashboard',
     '/transactions',
     '/balances',
     '/checklists',
@@ -36,6 +43,7 @@ it('gives those who run the houses invoices and the team', () => {
     '/team/users',
   ])
   expect(getNavSections(HOMEOWNER).map((s) => s.href)).toEqual([
+    '/dashboard',
     '/transactions',
     '/balances',
     '/checklists',

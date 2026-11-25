@@ -3,6 +3,7 @@ import {
   ClipboardCheck,
   FileText,
   House,
+  LayoutDashboard,
   type LucideIcon,
   ReceiptText,
   Scale,
@@ -31,6 +32,7 @@ export function getNavSections({
   ownsCompany: boolean
 }): NavSection[] {
   return [
+    { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     {
       title: 'Activity',
       href: '/transactions',

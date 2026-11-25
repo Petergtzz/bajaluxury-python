@@ -8,6 +8,7 @@ import {
 
 import { api, type schemas, unwrap } from '@/lib/api/client'
 import type { toTransactionQuery } from '@/lib/ledger/filters'
+import type { Range } from '@/lib/period'
 
 type Query = ReturnType<typeof toTransactionQuery>
 
@@ -44,6 +45,24 @@ export function useBalances() {
     queryKey: ['ledger', 'balances'],
     queryFn: () =>
       unwrap(api.GET('/v1/balances/', { params: { query: { is_archived: false } } })),
+  })
+}
+
+/** One house's statement over some days: what the dashboard reads. */
+export function useStatement(propertyId: string | undefined, range: Range) {
+  return useQuery({
+    queryKey: ['ledger', 'statement', propertyId, range],
+    queryFn: () =>
+      unwrap(
+        api.GET('/v1/properties/{property_id}/statement', {
+          params: {
+            path: { property_id: propertyId as string },
+            query: { start: range.from, end: range.to },
+          },
+        }),
+      ),
+    enabled: !!propertyId,
+    placeholderData: keepPreviousData,
   })
 }
 
