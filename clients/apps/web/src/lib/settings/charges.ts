@@ -1,6 +1,5 @@
 import type { schemas } from '@/lib/api/client'
 import type { PaymentMethod, RecurringCharge } from '@/lib/api/types'
-import { formatDate, sentence } from '@/lib/format'
 import { ordinal } from '@/lib/reports'
 
 /** Any day a month has; 31 means its last, whatever that is. */
@@ -90,13 +89,8 @@ export const toChargeChanges = (
   }
 }
 
-/** A charge's quiet line: how it is paid, when, and when it next falls. */
+/** A charge's quiet line: the day of the month it is charged, nothing else. */
 export const describeCharge = (charge: RecurringCharge): string =>
-  [
-    sentence(charge.category),
-    sentence(charge.payment_method),
-    charge.day_of_month === 31
-      ? 'Last day of the month'
-      : `On the ${ordinal(charge.day_of_month)}`,
-    `next ${formatDate(charge.next_charge_on)}`,
-  ].join(' · ')
+  charge.day_of_month === 31
+    ? 'Last day of the month'
+    : `On the ${ordinal(charge.day_of_month)}`

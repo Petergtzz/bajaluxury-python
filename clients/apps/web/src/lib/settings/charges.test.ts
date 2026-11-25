@@ -68,8 +68,7 @@ describe('recurring charges', () => {
       'The 15th',
       'Last day',
     ])
-    expect(describeCharge(CHARGE)).toBe(
-      'Services · Debit card · Last day of the month · next 30 Nov 2026',
-    )
+    expect(describeCharge(CHARGE)).toBe('Last day of the month')
+    expect(describeCharge({ ...CHARGE, day_of_month: 10 })).toBe('On the 10th')
   })
 })
