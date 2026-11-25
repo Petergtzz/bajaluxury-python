@@ -13,17 +13,24 @@ export function SummaryCard({
   label,
   headline,
   figures,
+  corner,
 }: {
-  label: string
+  /** What the card adds up; wraps between its parts, never inside one. */
+  label: ReactNode
   headline: ReactNode | undefined
   figures: Figure[]
+  /** What sits in the card's corner: the files of exactly what it shows. */
+  corner?: ReactNode
 }) {
   return (
     <section
       aria-label="Summary"
       className="rounded-3xl bg-neutral-50 px-6 py-7 sm:px-9 sm:py-8 dark:bg-neutral-800/50"
     >
-      <div className={`mb-1.5 ${LABEL}`}>{label}</div>
+      <div className="mb-1.5 flex items-center justify-between gap-4">
+        <div className={LABEL}>{label}</div>
+        {corner}
+      </div>
       <div className="flex flex-col gap-6">
         <p className="min-w-0 text-[32px] font-bold tracking-tight whitespace-nowrap text-neutral-900 tabular-nums sm:text-5xl dark:text-neutral-100">
           {headline ?? (

@@ -65,20 +65,35 @@ export type PeriodFilter = { period: Period; from: string; to: string }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
-/** The period from the address; nonsense, or days that end before they start, is the default. */
-export function readPeriod(params: URLSearchParams): PeriodFilter {
+/** Which periods a page offers, and which it starts on. */
+export type PeriodChoice = { fallback: Period; allowed: readonly Period[] }
+
+export const LEDGER_PERIODS: PeriodChoice = { fallback: DEFAULT_PERIOD, allowed: PERIODS }
+
+/**
+ * The period from the address. One the page doesn't offer, or custom days
+ * that end before they start, is the page's default.
+ */
+export function readPeriod(
+  params: URLSearchParams,
+  { fallback, allowed }: PeriodChoice = LEDGER_PERIODS,
+): PeriodFilter {
   const from = params.get('from') ?? ''
   const to = params.get('to') ?? ''
   const asked = params.get('period')
-  const period = PERIODS.includes(asked as Period) ? (asked as Period) : DEFAULT_PERIOD
+  const period = allowed.includes(asked as Period) ? (asked as Period) : fallback
   const custom = period === 'custom' && DATE.test(from) && DATE.test(to) && from <= to
-  if (period === 'custom' && !custom) return { period: DEFAULT_PERIOD, from: '', to: '' }
+  if (period === 'custom' && !custom) return { period: fallback, from: '', to: '' }
   return { period, from: custom ? from : '', to: custom ? to : '' }
 }
 
-/** Writes the period into the address, leaving it out at its default. */
-export function writePeriod(params: URLSearchParams, filter: PeriodFilter): void {
-  if (filter.period !== DEFAULT_PERIOD) params.set('period', filter.period)
+/** Writes the period into the address, leaving it out at the page's default. */
+export function writePeriod(
+  params: URLSearchParams,
+  filter: PeriodFilter,
+  { fallback }: PeriodChoice = LEDGER_PERIODS,
+): void {
+  if (filter.period !== fallback) params.set('period', filter.period)
   if (filter.period === 'custom') {
     params.set('from', filter.from)
     params.set('to', filter.to)

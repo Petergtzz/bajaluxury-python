@@ -15,3 +15,8 @@ it('names the balances page for who reads it', () => {
   expect(titles(true)).toContain('Balances')
   expect(titles(false)).toContain('Balance')
 })
+
+it('gathers the reports under one section', () => {
+  const reports = getNavSections({ manages: false }).find((s) => s.title === 'Reports')
+  expect(reports?.items?.map((item) => item.href)).toEqual(['/statement', '/utilities'])
+})

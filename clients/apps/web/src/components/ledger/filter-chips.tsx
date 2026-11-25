@@ -23,7 +23,10 @@ export const CHIP =
 
 const ALL = '__all'
 
-/** A select over a list with an "everything" choice, which means no filter. */
+/**
+ * A select over a list, with an "everything" choice meaning no filter when it
+ * has `allLabel`; without one, something is always chosen.
+ */
 export function FilterSelect({
   label,
   value,
@@ -35,20 +38,21 @@ export function FilterSelect({
   label: string
   value: string
   onChange: (value: string) => void
-  allLabel: string
+  allLabel?: string
   className?: string
   children: ReactNode
 }) {
   return (
     <Select
-      value={value || ALL}
-      onValueChange={(next) => onChange(next === ALL ? '' : next)}
+      value={value || (allLabel ? ALL : undefined)}
+      // Radix announces an empty value while it resets; nothing is unchosen here.
+      onValueChange={(next) => next && onChange(next === ALL ? '' : next)}
     >
       <SelectTrigger aria-label={label} className={className}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="start">
-        <SelectItem value={ALL}>{allLabel}</SelectItem>
+        {allLabel && <SelectItem value={ALL}>{allLabel}</SelectItem>}
         {children}
       </SelectContent>
     </Select>
@@ -60,10 +64,13 @@ export function PeriodChip({
   period,
   custom,
   onChange,
+  allowed = PERIODS,
 }: {
   period: Period
   custom?: Range
   onChange: (period: Period, custom?: Range) => void
+  /** The periods the page offers, custom days among them if it does. */
+  allowed?: readonly Period[]
 }) {
   const [open, setOpen] = useState(false)
   const [from, setFrom] = useState(custom?.from ?? '')
@@ -79,20 +86,22 @@ export function PeriodChip({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-1.5">
-        {PERIODS.filter((one) => one !== 'custom').map((one) => (
-          <button
-            key={one}
-            type="button"
-            onClick={() => {
-              onChange(one)
-              setOpen(false)
-            }}
-            className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[15px] hover:bg-accent"
-          >
-            {PERIOD_NAMES[one]}
-            {period === one && <Check className="size-4" />}
-          </button>
-        ))}
+        {allowed
+          .filter((one) => one !== 'custom')
+          .map((one) => (
+            <button
+              key={one}
+              type="button"
+              onClick={() => {
+                onChange(one)
+                setOpen(false)
+              }}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[15px] hover:bg-accent"
+            >
+              {PERIOD_NAMES[one]}
+              {period === one && <Check className="size-4" />}
+            </button>
+          ))}
         <form
           className="mt-1.5 flex flex-col gap-2 border-t border-border p-2 pt-3"
           onSubmit={(event) => {
