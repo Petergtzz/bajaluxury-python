@@ -55,6 +55,7 @@ class Letterhead:
     subtitle: str
     """Which part of it: the period."""
     generated: dt.date
+    date_label: str = "Generated"
 
 
 class Paper(FPDF):
@@ -98,7 +99,7 @@ class Paper(FPDF):
         self.cell(
             0,
             CAPTION + 2,
-            f"Generated {letterhead.generated:%b %-d, %Y}",
+            f"{letterhead.date_label} {letterhead.generated:%b %-d, %Y}",
             align=Align.R,
         )
         self.set_y(top + 64)

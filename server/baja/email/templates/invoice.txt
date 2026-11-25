@@ -1,0 +1,6 @@
+Hi {{ recipient }},
+
+Attached is invoice {{ number }} for your stay at {{ property }}: {{ total }} MXN, due {{ due }}.
+
+Saludos,
+{{ company }}

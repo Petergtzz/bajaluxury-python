@@ -4,6 +4,7 @@ from .api_token import ApiToken
 from .checklist import Checklist, ChecklistItem, ChecklistTemplateItem, ChecklistType
 from .company import Company, Currency
 from .guest_expense import GuestExpense
+from .invoice import Invoice, InvoiceLine
 from .login_code import LoginCode
 from .monthly_report import MonthlyReport
 from .property import Property
@@ -22,6 +23,8 @@ __all__ = [
     "Company",
     "Currency",
     "GuestExpense",
+    "Invoice",
+    "InvoiceLine",
     "LoginCode",
     "Model",
     "MonthlyReport",

@@ -19,6 +19,7 @@ Usage: python -m scripts.import_legacy <laravel-dsn> [--dry-run]
 import asyncio
 import datetime as dt
 import json
+import re
 import sys
 import uuid
 from collections.abc import Callable, Iterable
@@ -30,6 +31,7 @@ import asyncpg
 from sqlalchemy import or_, select, true, update
 from sqlalchemy.dialects.postgresql import insert
 
+from baja.company.service import get_company
 from baja.company.service import today as company_today
 from baja.kit.db.models import RecordModel
 from baja.kit.db.postgres import AsyncSession, create_async_sessionmaker
@@ -44,6 +46,8 @@ from baja.models import (
     Company,
     Currency,
     GuestExpense,
+    Invoice,
+    InvoiceLine,
     PaymentMethod,
     Property,
     RecurringCharge,
@@ -291,6 +295,18 @@ class LegacyChecklistItem:
 
 
 @dataclass(frozen=True)
+class LegacyInvoice:
+    id: int
+    house_id: int
+    invoice_no: str
+    recipient_name: str
+    email: str
+    invoice_date: dt.date
+    total: Decimal
+    created_at: dt.datetime | None
+
+
+@dataclass(frozen=True)
 class Legacy:
     houses: list[LegacyHouse]
     transactions: list[LegacyTransaction]
@@ -302,6 +318,7 @@ class Legacy:
     template_items: list[LegacyTemplateItem] = field(default_factory=list)
     checklists: list[LegacyChecklist] = field(default_factory=list)
     checklist_items: list[LegacyChecklistItem] = field(default_factory=list)
+    invoices: list[LegacyInvoice] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -364,6 +381,10 @@ async def read_legacy(dsn: str) -> Legacy:
             "SELECT id, house_id, user_id, type, status, completed_at, "
             "email_sent_to, created_at FROM checklists"
         )
+        invoices = await connection.fetch(
+            "SELECT id, house_id, invoice_no, recipient_name, email, invoice_date, "
+            "total, created_at FROM invoices"
+        )
         checklist_items = await connection.fetch(
             "SELECT id, checklist_id, description, position, is_checked, note, "
             "checked_at, created_at FROM checklist_items"
@@ -391,6 +412,7 @@ async def read_legacy(dsn: str) -> Legacy:
             for row in checklists
         ],
         checklist_items=[LegacyChecklistItem(**row) for row in checklist_items],
+        invoices=[LegacyInvoice(**row) for row in invoices],
     )
 
 
@@ -428,6 +450,7 @@ async def import_legacy(session: AsyncSession, legacy: Legacy) -> ImportReport:
     await _mirror(session, Transaction, transactions)
     await _mirror(session, GuestExpense, guest_expenses)
     await _import_checklists(session, legacy, properties, users)
+    await _import_invoices(session, legacy.invoices, properties)
     balances = {
         balance.property_id: balance.balance
         for balance in await TransactionRepository.from_session(session).list_balances(
@@ -813,6 +836,76 @@ async def _import_checklists(
     )
 
 
+INVOICE_NUMBER = re.compile(r"INV-(\d{4})-(\d+)")
+
+
+async def _import_invoices(
+    session: AsyncSession,
+    invoices: list[LegacyInvoice],
+    properties: dict[int, Property],
+) -> None:
+    """
+    Laravel kept only an invoice's total, not its lines: each comes over as
+    one line for that total, with no tax on top, so it still adds up to what
+    was sent.
+    """
+    problems = []
+    numbers = {}
+    for invoice in invoices:
+        if (match := INVOICE_NUMBER.fullmatch(invoice.invoice_no)) is None:
+            problems.append(f"invoice {invoice.id}: number {invoice.invoice_no!r}")
+        else:
+            numbers[invoice.id] = (int(match[1]), int(match[2]))
+        if invoice.house_id not in properties:
+            problems.append(f"invoice {invoice.id}: unknown house {invoice.house_id}")
+    if problems:
+        raise LegacyDataInvalid(problems)
+
+    rate = (await get_company(session)).usd_exchange_rate
+    await _mirror_by_id(
+        session,
+        Invoice,
+        [
+            {
+                "id": legacy_id("invoice", invoice.id),
+                "property_id": properties[invoice.house_id].id,
+                "year": numbers[invoice.id][0],
+                "sequence": numbers[invoice.id][1],
+                "recipient_name": invoice.recipient_name,
+                "email": invoice.email,
+                "issued_on": invoice.invoice_date,
+                "due_on": invoice.invoice_date,
+                "tax_rate": Decimal(0),
+                "exchange_rate": rate,
+                "subtotal": invoice.total,
+                "tax": Decimal(0),
+                "total": invoice.total,
+                "sent_at": _utc(invoice.created_at),
+                "created_at": _utc(invoice.created_at),
+                "deleted_at": None,
+            }
+            for invoice in invoices
+        ],
+    )
+    await _mirror_by_id(
+        session,
+        InvoiceLine,
+        [
+            {
+                "id": legacy_id("invoice_line", invoice.id),
+                "invoice_id": legacy_id("invoice", invoice.id),
+                "position": 1,
+                "description": f"As invoiced ({invoice.invoice_no})",
+                "quantity": Decimal(1),
+                "unit_price": invoice.total,
+                "amount": invoice.total,
+                "deleted_at": None,
+            }
+            for invoice in invoices
+        ],
+    )
+
+
 async def _mirror_by_id(
     session: AsyncSession, model: type[RecordModel], rows: list[dict[str, Any]]
 ) -> None:
@@ -876,7 +969,7 @@ async def main(dsn: str, *, dry_run: bool) -> int:
         f"{len(legacy.houses)} properties, {len(legacy.transactions)} transactions, "
         f"{len(legacy.guest_expenses)} guest expenses, {len(legacy.users)} users, "
         f"{len(legacy.recurring_charges)} recurring charges, "
-        f"{len(legacy.checklists)} checklists"
+        f"{len(legacy.checklists)} checklists, {len(legacy.invoices)} invoices"
         + (" (dry run, nothing saved)" if dry_run else "")
     )
     checks = report.balances

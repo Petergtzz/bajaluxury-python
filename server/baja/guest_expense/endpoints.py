@@ -40,6 +40,9 @@ async def list_guest_expenses(
     category: str | None = Query(None, description="Ignoring case."),
     start_date: dt.date | None = Query(None, description="From this day on."),
     end_date: dt.date | None = Query(None, description="Up to and including."),
+    invoiced: bool | None = Query(
+        None, description="Only billed (`true`) or not yet billed (`false`) ones."
+    ),
     session: AsyncReadSession = Depends(get_db_read_session),
 ) -> ListResource[GuestExpenseSchema]:
     """Newest first, from the properties the caller may see."""
@@ -51,6 +54,7 @@ async def list_guest_expenses(
         category=category,
         start_date=start_date,
         end_date=end_date,
+        invoiced=invoiced,
     )
     return ListResource.from_paginated_results(
         [GuestExpenseSchema.model_validate(g) for g in guest_expenses],

@@ -29,6 +29,7 @@ class GuestExpenseService:
         category: str | None = None,
         start_date: dt.date | None = None,
         end_date: dt.date | None = None,
+        invoiced: bool | None = None,
     ) -> tuple[Sequence[GuestExpense], int]:
         statement = GuestExpenseRepository.from_session(session).get_list_statement(
             user,
@@ -36,6 +37,7 @@ class GuestExpenseService:
             category=category,
             start_date=start_date,
             end_date=end_date,
+            invoiced=invoiced,
         )
         return await paginate(session, statement, pagination=pagination)
 
@@ -74,6 +76,7 @@ class GuestExpenseService:
             ),
             existing,
         )
+        await self._load_invoice_id(session, guest_expense)
         return self._replayed(guest_expense), created
 
     async def update(
@@ -94,12 +97,20 @@ class GuestExpenseService:
             guest_expense.property_id
         ):
             await property_service.get_open(session, user, changes["property_id"])
-        return await GuestExpenseRepository.from_session(session).update(
+        await GuestExpenseRepository.from_session(session).update(
             guest_expense, changes
         )
+        await self._load_invoice_id(session, guest_expense)
+        return guest_expense
 
     async def delete(self, session: AsyncSession, guest_expense: GuestExpense) -> None:
         await GuestExpenseRepository.from_session(session).soft_delete(guest_expense)
+
+    async def _load_invoice_id(
+        self, session: AsyncReadSession, guest_expense: GuestExpense
+    ) -> None:
+        """Worked out by the database: read again after a write."""
+        await session.refresh(guest_expense, ["invoice_id"])
 
     def _replayed(self, guest_expense: GuestExpense) -> GuestExpense:
         if guest_expense.deleted_at is not None:

@@ -17,6 +17,7 @@ class Permission(StrEnum):
     recurring_charges_manage = "recurring_charges:manage"
     checklists_read = "checklists:read"
     checklists_manage = "checklists:manage"
+    invoices_manage = "invoices:manage"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -34,6 +35,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.recurring_charges_manage,
             Permission.checklists_read,
             Permission.checklists_manage,
+            Permission.invoices_manage,
         }
     ),
     Role.homeowner: frozenset(
@@ -64,6 +66,7 @@ DENIED: dict[Permission, str] = {
     ),
     Permission.checklists_read: "You can't view checklists.",
     Permission.checklists_manage: "Only owners and managers can fill in checklists.",
+    Permission.invoices_manage: "Only owners and managers can see and send invoices.",
 }
 
 

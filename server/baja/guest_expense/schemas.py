@@ -19,6 +19,9 @@ class GuestExpenseSchema(BaseModel):
     source: str
     external_id: str
     entered_by_id: UUID | None
+    invoice_id: UUID | None = Field(
+        description="The invoice that bills it, if one does."
+    )
     created_at: dt.datetime
 
 

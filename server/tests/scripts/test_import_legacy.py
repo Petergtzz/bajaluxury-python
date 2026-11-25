@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 import baja.company.service
 from baja.kit.db.postgres import AsyncSession
@@ -13,6 +14,7 @@ from baja.models import (
     ChecklistTemplateItem,
     Company,
     GuestExpense,
+    Invoice,
     PaymentMethod,
     Property,
     PropertyMember,
@@ -30,6 +32,7 @@ from scripts.import_legacy import (
     LegacyDataInvalid,
     LegacyGuestExpense,
     LegacyHouse,
+    LegacyInvoice,
     LegacyRecurringCharge,
     LegacyTemplateItem,
     LegacyTransaction,
@@ -587,3 +590,61 @@ async def test_refuses_checklists_it_cannot_place(session: AsyncSession) -> None
         "checklist 10: unknown house 99",
         "checklist item 100: unknown checklist 7",
     ]
+
+
+async def test_copies_invoices_by_their_numbers(session: AsyncSession) -> None:
+    legacy = dataclasses.replace(
+        LEGACY,
+        invoices=[
+            LegacyInvoice(
+                5,
+                1,
+                "INV-2026-005",
+                "Ana Guest",
+                "ana@example.com",
+                dt.date(2026, 5, 15),
+                Decimal("25383.12"),
+                CREATED,
+            )
+        ],
+    )
+
+    await import_legacy(session, legacy)
+    await import_legacy(session, legacy)
+
+    [invoice] = (
+        await session.execute(select(Invoice).options(selectinload(Invoice.lines)))
+    ).scalars()
+    assert (invoice.number, invoice.total, invoice.subtotal, invoice.tax) == (
+        "INV-2026-005",
+        Decimal("25383.12"),
+        Decimal("25383.12"),
+        Decimal("0.00"),
+    )
+    assert invoice.sent_at == CREATED.replace(tzinfo=dt.UTC)
+    assert [(line.description, line.amount) for line in invoice.lines] == [
+        ("As invoiced (INV-2026-005)", Decimal("25383.12"))
+    ]
+
+
+async def test_refuses_invoices_it_cannot_number(session: AsyncSession) -> None:
+    legacy = dataclasses.replace(
+        LEGACY,
+        invoices=[
+            LegacyInvoice(
+                1,
+                1,
+                "2026/7",
+                "A",
+                "a@example.com",
+                dt.date(2026, 5, 1),
+                Decimal(1),
+                None,
+            )
+        ],
+    )
+
+    with pytest.raises(LegacyDataInvalid) as error:
+        await import_legacy(session, legacy)
+
+    assert error.value.problems == ["invoice 1: number '2026/7'"]

@@ -24,6 +24,7 @@ class GuestExpenseRepository(RepositoryBase[GuestExpense]):
         category: str | None = None,
         start_date: dt.date | None = None,
         end_date: dt.date | None = None,
+        invoiced: bool | None = None,
     ) -> Select[GuestExpense]:
         statement = self.get_visible_statement(user).order_by(
             GuestExpense.date.desc(), GuestExpense.created_at.desc()
@@ -38,6 +39,9 @@ class GuestExpenseRepository(RepositoryBase[GuestExpense]):
             statement = statement.where(GuestExpense.date >= start_date)
         if end_date is not None:
             statement = statement.where(GuestExpense.date <= end_date)
+        if invoiced is not None:
+            billed = GuestExpense.invoice_id.is_not(None)  # type: ignore[attr-defined]
+            statement = statement.where(billed if invoiced else ~billed)
         return statement
 
     async def get_visible(
