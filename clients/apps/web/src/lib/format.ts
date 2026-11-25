@@ -6,7 +6,9 @@
  */
 
 export function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
+  // English as written in Canada: the same digits as the US, but dollars are
+  // "US$", so they can't be mistaken for pesos next to an "MX$".
+  return new Intl.NumberFormat('en-CA', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,

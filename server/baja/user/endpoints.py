@@ -42,6 +42,8 @@ async def get_me(user: CurrentUser) -> User:
 async def update_me(user_update: UserUpdate, user: CurrentUser) -> User:
     if "name" in user_update.model_fields_set:
         user.name = user_update.name or None
+    if "display_currency" in user_update.model_fields_set:
+        user.display_currency = user_update.display_currency
     return user
 
 

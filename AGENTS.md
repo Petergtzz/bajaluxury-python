@@ -38,7 +38,7 @@ Requirements: Python 3.14, Postgres 17 and Redis on localhost.
 ### Patterns
 
 - Tables inherit `RecordModel`: UUIDv7 `id`, `created_at`, `modified_at`, `deleted_at`. Deleting is soft.
-- Money is `NUMERIC(12,2)` mapped to `Decimal` (never float), in the company's currency. JSON carries it as a number.
+- Money is `NUMERIC(12,2)` mapped to `Decimal` (never float), in the company's currency. JSON carries it as a number. A user's `display_currency` only changes how the web app shows amounts (converted at the company's one rate); the API always sends and takes the company's currency. Terms are in `GLOSSARY.md`.
 - Balances are derived from `transactions`, never stored. Whether a row moves the balance (`affects_balance`) is decided by the ledger when it is written: income always, an expense when its payment method is in the property's `balance_methods`.
 - Writes from outside clients are idempotent on `(source, external_id)`: a resend returns the row already recorded.
 - One database transaction per request (`TransactionalMiddleware`): services never commit, the response does.

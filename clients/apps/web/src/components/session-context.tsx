@@ -5,6 +5,8 @@ import { createContext, type ReactNode, useContext } from 'react'
 
 import { api, unwrap } from '@/lib/api/client'
 import type { User } from '@/lib/api/types'
+import { formatMoney } from '@/lib/format'
+import { toShown } from '@/lib/money'
 
 const UserContext = createContext<User | null>(null)
 
@@ -41,7 +43,37 @@ export function useCompany() {
   })
 }
 
-/** The company's currency, MXN until the company has loaded. */
+/**
+ * The company's currency, MXN until the company has loaded: what amounts are
+ * entered in, whatever the reader chose to read them in.
+ */
 export function useCurrency(): string {
   return useCompany().data?.currency ?? 'MXN'
+}
+
+/**
+ * Writes an amount from the books as this reader reads it: in the currency
+ * they chose, converted at the company's rate. Until the company has loaded
+ * there is no rate, so amounts stay in the company's currency.
+ */
+export function useMoney(): (amount: number) => string {
+  const kept = useCurrency()
+  const converted = useConverted()
+  return converted ?? ((amount) => formatMoney(amount, kept))
+}
+
+/**
+ * Writes an amount in the reader's currency, or null when they read the
+ * company's own: then nothing they see is converted.
+ */
+export function useConverted(): ((amount: number) => string) | null {
+  const company = useCompany().data
+  const { display_currency } = useUser()
+  if (!company || !display_currency || display_currency === company.currency) return null
+  const display = {
+    company: company.currency,
+    shown: display_currency,
+    usdRate: Number(company.usd_exchange_rate),
+  }
+  return (amount) => formatMoney(toShown(amount, display), display_currency)
 }

@@ -40,11 +40,16 @@ export function useTransactionSummary(query: Query) {
   })
 }
 
-export function useBalances() {
+/** Each house's balance: those in use, or with `all` the archived ones too. */
+export function useBalances({ all = false }: { all?: boolean } = {}) {
   return useQuery({
-    queryKey: ['ledger', 'balances'],
+    queryKey: ['ledger', 'balances', { all }],
     queryFn: () =>
-      unwrap(api.GET('/v1/balances/', { params: { query: { is_archived: false } } })),
+      unwrap(
+        api.GET('/v1/balances/', {
+          params: { query: all ? {} : { is_archived: false } },
+        }),
+      ),
   })
 }
 

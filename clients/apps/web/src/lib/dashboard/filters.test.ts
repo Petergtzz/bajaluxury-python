@@ -3,14 +3,16 @@ import { describe, expect, it } from 'vitest'
 import type { Property } from '@/lib/api/types'
 
 import {
-  balanceLabel,
   chooseProperty,
   dashboardProperties,
-  dashboardRange,
   expensesHref,
+  monthLabel,
+  monthRange,
+  monthsOf,
   parseDashboardFilters,
   serializeDashboardFilters,
   share,
+  shownMonth,
 } from './filters'
 
 const house = (id: string, name: string, is_archived = false): Property => ({
@@ -26,20 +28,21 @@ const COLINAS = house('p1', 'Colinas 21')
 const CAMPO = house('p2', 'Campo 9')
 const TODAY = '2026-11-25'
 
+const parse = (address: string) => parseDashboardFilters(new URLSearchParams(address))
+
 describe('the address', () => {
   it('leaves this month and the first house out', () => {
-    const filters = parseDashboardFilters(new URLSearchParams())
-    expect(filters).toEqual({ period: 'this-month', from: '', to: '', property: '' })
-    expect(serializeDashboardFilters(filters)).toBe('')
-    expect(
-      serializeDashboardFilters({ ...filters, period: 'last-month', property: 'p1' }),
-    ).toBe('period=last-month&property=p1')
+    expect(parse('')).toEqual({ property: '', month: '' })
+    expect(serializeDashboardFilters(parse(''))).toBe('')
+    expect(serializeDashboardFilters({ property: 'p1', month: '2026-07' })).toBe(
+      'property=p1&month=2026-07',
+    )
   })
 
-  it('refuses all time, which has no first day', () => {
-    expect(parseDashboardFilters(new URLSearchParams('period=all')).period).toBe(
-      'this-month',
-    )
+  it('shows this month for a month that is not one, or is still to come', () => {
+    expect(shownMonth(parse('month=2026-13'), TODAY)).toBe('2026-11')
+    expect(shownMonth(parse('month=2027-01'), TODAY)).toBe('2026-11')
+    expect(shownMonth(parse('month=2026-07'), TODAY)).toBe('2026-07')
   })
 })
 
@@ -60,29 +63,50 @@ describe('the house shown', () => {
   })
 })
 
-describe('the figures', () => {
-  it('name the balance for its day', () => {
-    const month = dashboardRange(parseDashboardFilters(new URLSearchParams()), TODAY)
-    const last = dashboardRange(
-      parseDashboardFilters(new URLSearchParams('period=last-month')),
-      TODAY,
-    )
-    expect(month).toEqual({ from: '2026-11-01', to: '2026-11-30' })
-    expect(balanceLabel(month, TODAY)).toBe('Balance today')
-    expect(balanceLabel(last, TODAY)).toBe('Balance on 31 Oct 2026')
+describe('the months', () => {
+  it('run from the first entry to today, newest first, across a year', () => {
+    expect(monthsOf('2025-11-20', TODAY)).toEqual([
+      '2026-11',
+      '2026-10',
+      '2026-09',
+      '2026-08',
+      '2026-07',
+      '2026-06',
+      '2026-05',
+      '2026-04',
+      '2026-03',
+      '2026-02',
+      '2026-01',
+      '2025-12',
+      '2025-11',
+    ])
   })
 
-  it('open the expenses they add up, on the same house and days', () => {
-    const filters = parseDashboardFilters(new URLSearchParams('period=last-month'))
-    expect(expensesHref(filters, 'p1', { category: 'services' })).toBe(
-      '/transactions?period=last-month&property=p1&type=expense&category=services',
+  it('are this one alone for a house with nothing yet', () => {
+    expect(monthsOf(null, TODAY)).toEqual(['2026-11'])
+    expect(monthsOf('2027-02-01', TODAY)).toEqual(['2026-11'])
+  })
+
+  it('read as their days and their name', () => {
+    expect(monthRange('2028-02')).toEqual({ from: '2028-02-01', to: '2028-02-29' })
+    expect(monthLabel('2026-07')).toBe('July 2026')
+  })
+})
+
+describe('a row', () => {
+  it('opens its expenses for the same house and month', () => {
+    expect(expensesHref('2026-11', TODAY, 'p1', { category: 'services' })).toBe(
+      '/transactions?property=p1&type=expense&category=services',
     )
-    expect(expensesHref(filters, 'p1', { method: 'credit card' })).toBe(
+    expect(expensesHref('2026-10', TODAY, 'p1', { method: 'credit card' })).toBe(
       '/transactions?period=last-month&property=p1&type=expense&method=credit+card',
     )
+    expect(expensesHref('2026-07', TODAY, 'p1', { category: 'staff' })).toBe(
+      '/transactions?period=custom&from=2026-07-01&to=2026-07-31&property=p1&type=expense&category=staff',
+    )
   })
 
-  it('round shares, never calling a sliver nothing', () => {
+  it('rounds its share, never calling a sliver nothing', () => {
     expect([share(1, 3), share(1, 1000), share(0, 10), share(5, 0)]).toEqual([
       '33%',
       '<1%',

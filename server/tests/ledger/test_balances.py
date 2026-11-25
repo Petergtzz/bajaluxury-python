@@ -170,11 +170,12 @@ async def test_balances_list_the_most_owed_first_with_last_dates(
         (
             b["property_name"],
             b["balance"],
+            b["first_activity_date"],
             b["last_income_date"],
             b["last_activity_date"],
         )
         for b in balances
     ] == [
-        ("Colinas 21", -900, None, "2026-11-03"),
-        ("Campo 9", 30, "2026-10-01", "2026-11-02"),
+        ("Colinas 21", -900, "2026-11-03", None, "2026-11-03"),
+        ("Campo 9", 30, "2026-10-01", "2026-10-01", "2026-11-02"),
     ]

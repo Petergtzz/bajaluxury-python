@@ -20,7 +20,7 @@ import { CHIP, CHIP_ROW, FilterSelect } from '@/components/ledger/filter-chips'
 import { ListHeading } from '@/components/list-heading'
 import { ListRow, RowMark } from '@/components/list-row'
 import { PageAction } from '@/components/page-header'
-import { useCurrency } from '@/components/session-context'
+import { useCurrency, useMoney } from '@/components/session-context'
 import { SummaryCard } from '@/components/summary-card'
 import { useCategories, useProperties } from '@/hooks/ledger'
 import {
@@ -30,7 +30,7 @@ import {
 } from '@/hooks/settings'
 import { getErrorMessage } from '@/lib/api/errors'
 import type { PaymentMethod, RecurringCharge } from '@/lib/api/types'
-import { formatMoney, sentence } from '@/lib/format'
+import { sentence } from '@/lib/format'
 import { METHODS } from '@/lib/ledger/filters'
 import {
   type ChargeDraft,
@@ -73,7 +73,7 @@ export function Charges() {
   }
   const charges = useRecurringCharges()
   const properties = useProperties().data ?? []
-  const currency = useCurrency()
+  const money = useMoney()
   const [dialog, setDialog] = useState<{
     charge: RecurringCharge | null
     key: number
@@ -118,7 +118,7 @@ export function Charges() {
                 ? `${sentence(filters.what)} · each month`
                 : 'Charged each month'
             }
-            headline={formatMoney(summary.monthly, currency)}
+            headline={money(summary.monthly)}
             figures={[
               { label: 'Charges', value: summary.count.toLocaleString('en-US') },
               { label: 'Houses', value: summary.houses.toLocaleString('en-US') },
@@ -178,7 +178,7 @@ export function Charges() {
                   <ListRow
                     key={charge.id}
                     onSelect={() => openDialog(charge)}
-                    label={`${sentence(charge.concept)}, ${formatMoney(charge.amount, currency)}`}
+                    label={`${sentence(charge.concept)}, ${money(charge.amount)}`}
                     mark={
                       <RowMark className="bg-emerald-100 dark:bg-emerald-500/20">
                         <Repeat
@@ -191,7 +191,7 @@ export function Charges() {
                     meta={<span className="truncate">{describeCharge(charge)}</span>}
                     trailing={
                       <span className="shrink-0 text-base font-semibold whitespace-nowrap tabular-nums">
-                        {formatMoney(charge.amount, currency)}
+                        {money(charge.amount)}
                       </span>
                     }
                   />

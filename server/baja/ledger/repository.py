@@ -136,6 +136,7 @@ class TransactionRepository(RepositoryBase[Transaction]):
                 Property.id,
                 Property.name,
                 balance,
+                func.min(Transaction.date).label("first_activity_date"),
                 func.max(Transaction.date)
                 .filter(Transaction.type == TransactionType.income)
                 .label("last_income_date"),
@@ -160,8 +161,16 @@ class TransactionRepository(RepositoryBase[Transaction]):
                 property_id=id,
                 property_name=name,
                 balance=balance,
+                first_activity_date=first_activity_date,
                 last_income_date=last_income_date,
                 last_activity_date=last_activity_date,
             )
-            for id, name, balance, last_income_date, last_activity_date in result
+            for (
+                id,
+                name,
+                balance,
+                first_activity_date,
+                last_income_date,
+                last_activity_date,
+            ) in result
         ]

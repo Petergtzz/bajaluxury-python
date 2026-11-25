@@ -3,6 +3,7 @@
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 
+import { useConverted } from '@/components/session-context'
 import {
   Select,
   SelectContent,
@@ -22,6 +23,11 @@ export function AmountField({
   className,
   ...props
 }: { currency: string; invalid?: boolean } & ComponentProps<'input'>) {
+  // Typed in the books' currency; someone who reads another sees it too.
+  const converted = useConverted()
+  const typed = Number(String(props.value ?? '').replaceAll(',', ''))
+  const note =
+    converted && props.value && Number.isFinite(typed) ? converted(typed) : null
   return (
     <div className="flex flex-col items-center gap-1 pt-4 pb-2">
       <div className="flex items-baseline justify-center text-5xl font-bold tracking-tight tabular-nums">
@@ -47,7 +53,10 @@ export function AmountField({
           {...props}
         />
       </div>
-      <span className="text-sm font-medium text-muted-foreground">{currency}</span>
+      <span className="text-sm font-medium text-muted-foreground">
+        {currency}
+        {note && ` · ≈ ${note}`}
+      </span>
     </div>
   )
 }

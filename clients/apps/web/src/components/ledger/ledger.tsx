@@ -119,7 +119,6 @@ export function Ledger() {
 
       <LedgerSummary
         summary={summary.data}
-        currency={currency}
         period={getPeriodLabel(filters.period, today, customRange(filters))}
       />
 
@@ -199,7 +198,6 @@ export function Ledger() {
         transactions={rows}
         properties={byId}
         today={today}
-        currency={currency}
         empty={empty}
         onSelect={openDialog}
       />

@@ -6,6 +6,7 @@ export const OWNER: User = {
   email: 'pedro@example.com',
   name: 'Pedro',
   role: 'owner',
+  display_currency: null,
 }
 
 /** A homeowner: they may look at their own properties, and change nothing. */
@@ -14,4 +15,5 @@ export const HOMEOWNER: User = {
   email: 'ana@example.com',
   name: 'Ana',
   role: 'homeowner',
+  display_currency: null,
 }

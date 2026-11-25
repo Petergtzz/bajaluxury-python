@@ -1652,6 +1652,11 @@ export interface components {
              * @description What the owner has with us: negative when they owe us.
              */
             balance: number;
+            /**
+             * First Activity Date
+             * @description The day of its first entry: where its history starts.
+             */
+            first_activity_date: string | null;
             /** Last Activity Date */
             last_activity_date: string | null;
             /** Last Income Date */
@@ -2357,8 +2362,13 @@ export interface components {
              */
             error: "Unauthorized";
         };
-        /** UserSchema */
+        /**
+         * UserSchema
+         * @description Whoever is logged in, with what only they choose.
+         */
         UserSchema: {
+            /** @description The currency they read amounts in; null for the company's. */
+            display_currency: components["schemas"]["Currency"] | null;
             /**
              * Email
              * Format: email
@@ -2375,6 +2385,8 @@ export interface components {
         };
         /** UserUpdate */
         UserUpdate: {
+            /** @description Only how amounts are shown, converted at the company's rate. */
+            display_currency?: components["schemas"]["Currency"] | null;
             /** Name */
             name?: string | null;
         };

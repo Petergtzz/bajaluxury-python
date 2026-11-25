@@ -2,12 +2,14 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { OWNER } from '@/test/fixtures'
 import { renderSignedIn, stubLists, stubRoutes } from '@/test/render'
 
 import { Charges } from './charges'
 import { CompanySettings } from './company-settings'
 import { ConnectionsSettings } from './connections-settings'
 import { Options } from './options'
+import { ProfileSettings } from './profile-settings'
 
 const refresh = vi.fn()
 const replace = vi.fn()
@@ -281,5 +283,32 @@ describe('Company', () => {
     expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({
       usd_exchange_rate: '17.25',
     })
+  })
+})
+
+describe('Profile', () => {
+  it('chooses the currency amounts are read in, and only sends that', async () => {
+    const calls = stubRoutes({
+      '/v1/company': COMPANY,
+      '/v1/users/me': {
+        status: 200,
+        body: { ...OWNER, display_currency: 'USD' },
+      },
+    })
+    renderSignedIn(<ProfileSettings />)
+
+    expect(
+      await screen.findByText(
+        /at MX\$17\.00 per US dollar\. They are always entered in MXN/,
+      ),
+    ).toBeTruthy()
+    await userEvent.click(screen.getByRole('combobox', { name: 'Currency' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'US dollars (USD)' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(calls.filter((c) => c.method === 'PATCH')).toEqual([
+      { method: 'PATCH', path: '/v1/users/me', body: { display_currency: 'USD' } },
+    ])
   })
 })

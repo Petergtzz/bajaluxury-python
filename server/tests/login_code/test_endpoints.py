@@ -90,6 +90,7 @@ async def test_the_right_code_logs_in_once(
         "email": user.email,
         "name": "Pedro Gutierrez",
         "role": "owner",
+        "display_currency": None,
     }
     assert response.cookies.get(settings.USER_SESSION_COOKIE_KEY)
     sessions = (await session.execute(select(UserSession))).scalars().all()

@@ -70,6 +70,9 @@ class PropertyBalance(BaseModel):
     balance: Money = Field(
         description="What the owner has with us: negative when they owe us."
     )
+    first_activity_date: dt.date | None = Field(
+        description="The day of its first entry: where its history starts."
+    )
     last_income_date: dt.date | None
     last_activity_date: dt.date | None
 

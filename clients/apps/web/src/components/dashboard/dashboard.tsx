@@ -4,73 +4,67 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMemo } from 'react'
 
 import { EmptyCard } from '@/components/empty-card'
-import {
-  CHIP,
-  CHIP_ROW,
-  FilterSelect,
-  PeriodChip,
-} from '@/components/ledger/filter-chips'
+import { CHIP, CHIP_ROW, FilterSelect } from '@/components/ledger/filter-chips'
 import { MethodMark } from '@/components/ledger/method-icon'
 import { ListHeading } from '@/components/list-heading'
-import { ListRow, RowMark, StatusMeta } from '@/components/list-row'
+import { ListRow, RowMark } from '@/components/list-row'
 import { PageHeader } from '@/components/page-header'
-import { useCompany, useCurrency } from '@/components/session-context'
+import { useCompany, useMoney } from '@/components/session-context'
 import { SummaryCard } from '@/components/summary-card'
 import { SelectItem } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { useProperties, useStatement } from '@/hooks/ledger'
+import { useBalances, useProperties, useStatement } from '@/hooks/ledger'
 import { getErrorMessage } from '@/lib/api/errors'
-import type { Statement } from '@/lib/api/types'
 import {
-  balanceLabel,
   chooseProperty,
-  DASHBOARD_PERIODS,
   type DashboardFilters,
   dashboardProperties,
-  dashboardRange,
   type ExpenseNarrow,
   expensesHref,
+  monthLabel,
+  monthName,
+  monthRange,
+  monthsOf,
   parseDashboardFilters,
   serializeDashboardFilters,
   share,
+  shownMonth,
 } from '@/lib/dashboard/filters'
-import { formatMoney, sentence, todayIn } from '@/lib/format'
-import { customRange, getPeriodLabel } from '@/lib/period'
+import { sentence, todayIn } from '@/lib/format'
+
+import { categoryIcon } from './category-icon'
 
 /**
- * One house over some days: what it spent, where that went and how it was
- * paid. Two chips choose what is shown; how it was paid is a list rather than
- * a filter, so every method's share is read at once.
+ * One house: what it has with us today, then one month of it. Every figure is
+ * an amount with a short name, and every row opens the expenses behind it.
  */
 export function Dashboard() {
   const company = useCompany()
-  const currency = useCurrency()
+  const money = useMoney()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const filters = useMemo(() => parseDashboardFilters(searchParams), [searchParams])
   const today = todayIn(company.data?.timezone ?? 'America/Mazatlan')
-  const range = dashboardRange(filters, today)
 
   const properties = useProperties()
+  const balances = useBalances({ all: true })
   const all = properties.data ?? []
   const property = chooseProperty(all, filters.property)
   const choices = dashboardProperties(all, filters.property)
-  const statement = useStatement(property?.id, range)
+  const balance = balances.data?.find((row) => row.property_id === property?.id)
+  const month = shownMonth(filters, today)
+  const statement = useStatement(property?.id, monthRange(month))
   const data = statement.data
-  const periodLabel = getPeriodLabel(filters.period, today, customRange(filters))
 
   const setFilters = (patch: Partial<DashboardFilters>) => {
     const address = serializeDashboardFilters({ ...filters, ...patch })
     router.replace(address ? `${pathname}?${address}` : pathname, { scroll: false })
   }
+  const open = (narrow: ExpenseNarrow) =>
+    property && router.push(expensesHref(month, today, property.id, narrow))
 
-  const header = (
-    <PageHeader
-      title="Dashboard"
-      description="What a house spent, where it went and how it was paid."
-    />
-  )
+  const header = <PageHeader title="Dashboard" />
 
   if (properties.isPending || properties.isError || !property) {
     return (
@@ -83,13 +77,13 @@ export function Dashboard() {
         ) : properties.isError ? (
           <p className="text-sm text-destructive">{getErrorMessage(properties.error)}</p>
         ) : (
-          <EmptyCard title="No properties yet">
-            The dashboard shows a house once there is one.
-          </EmptyCard>
+          <EmptyCard title="No properties yet" />
         )}
       </>
     )
   }
+
+  const spent = data?.expense_total ?? 0
 
   return (
     <>
@@ -110,140 +104,110 @@ export function Dashboard() {
             ))}
           </FilterSelect>
         )}
-        <PeriodChip
-          key={`${filters.from}${filters.to}`}
-          period={filters.period}
-          custom={customRange(filters)}
-          allowed={DASHBOARD_PERIODS.allowed}
-          onChange={(period, custom) =>
-            setFilters({ period, from: custom?.from ?? '', to: custom?.to ?? '' })
+        <FilterSelect
+          label="Month"
+          value={month}
+          onChange={(chosen) =>
+            setFilters({ month: chosen === today.slice(0, 7) ? '' : chosen })
           }
-        />
+          className={CHIP}
+        >
+          {monthsOf(balance?.first_activity_date, today).map((one) => (
+            <SelectItem key={one} value={one}>
+              {monthLabel(one)}
+            </SelectItem>
+          ))}
+        </FilterSelect>
       </div>
 
       <SummaryCard
-        label={`Spent · ${periodLabel}`}
-        headline={data && formatMoney(data.expense_total, currency)}
+        label="Balance today"
+        headline={
+          balance && (
+            <span className={balance.balance < 0 ? 'text-destructive' : undefined}>
+              {money(balance.balance)}
+            </span>
+          )
+        }
         figures={[
           {
-            label: 'Paid from the balance',
-            value: data && formatMoney(data.balance_expense_total, currency),
-          },
-          {
-            label: 'Money in',
+            label: 'Received',
             value: data && (
               <span className="text-emerald-700 dark:text-emerald-500">
-                +{formatMoney(data.income_total, currency)}
+                +{money(data.income_total)}
               </span>
             ),
           },
-          {
-            label: balanceLabel(range, today),
-            value: data && formatMoney(data.closing_balance, currency),
-          },
+          { label: `Spent in ${monthName(month)}`, value: data && money(spent) },
         ]}
       />
 
       {statement.isError ? (
         <p className="text-sm text-destructive">{getErrorMessage(statement.error)}</p>
-      ) : !data ? null : data.expense_total === 0 ? (
-        <EmptyCard title={`Nothing spent · ${periodLabel}`}>
-          Expenses recorded for {property.name} show here.
-        </EmptyCard>
+      ) : !data ? null : spent === 0 ? (
+        <EmptyCard title={`Nothing spent in ${monthLabel(month)}`} />
       ) : (
-        <Breakdown
-          statement={data}
-          currency={currency}
-          hrefFor={(narrow) => expensesHref(filters, property.id, narrow)}
-          onOpen={(href) => router.push(href)}
-        />
+        <>
+          <section aria-label="Spent by payment method">
+            <ListHeading>Spent by payment method</ListHeading>
+            <ul className="flex flex-col">
+              {data.expenses_by_method.map((row) => {
+                const method = row.payment_method
+                const name = sentence(method) || 'No method'
+                return (
+                  <ListRow
+                    key={method ?? 'none'}
+                    label={`${name}, ${money(row.total)}`}
+                    onSelect={method ? () => open({ method }) : undefined}
+                    mark={<MethodMark type="expense" method={method} />}
+                    title={name}
+                    trailing={<Amount value={money(row.total)} />}
+                  />
+                )
+              })}
+            </ul>
+          </section>
+
+          <section aria-label="Where it went">
+            <ListHeading>Where it went</ListHeading>
+            <ul className="flex flex-col">
+              {data.expenses_by_category.map((row) => {
+                const Icon = categoryIcon(row.category)
+                return (
+                  <ListRow
+                    key={row.category}
+                    label={`${sentence(row.category)}, ${money(row.total)}`}
+                    onSelect={() => open({ category: row.category })}
+                    mark={
+                      <RowMark>
+                        <Icon className="size-5" strokeWidth={1.8} aria-hidden />
+                      </RowMark>
+                    }
+                    title={sentence(row.category)}
+                    trailing={
+                      <Amount value={money(row.total)} under={share(row.total, spent)} />
+                    }
+                  />
+                )
+              })}
+            </ul>
+          </section>
+        </>
       )}
     </>
   )
 }
 
-function Breakdown({
-  statement,
-  currency,
-  hrefFor,
-  onOpen,
-}: {
-  statement: Statement
-  currency: string
-  hrefFor: (narrow: ExpenseNarrow) => string
-  onOpen: (href: string) => void
-}) {
-  const total = statement.expense_total
-  // Whether an expense came off the balance was settled when it was recorded,
-  // so it is read from the entries, not from what the house pays today.
-  const fromBalance = new Set(
-    statement.entries
-      .filter((entry) => entry.type === 'expense' && entry.affects_balance)
-      .map((entry) => entry.payment_method),
-  )
+/** A row's amount, with what it is of the whole in small type under it. */
+function Amount({ value, under }: { value: string; under?: string }) {
   return (
-    <>
-      <section aria-label="Where it went">
-        <ListHeading>Where it went</ListHeading>
-        <ul className="flex flex-col">
-          {statement.expenses_by_category.map((row) => (
-            <ListRow
-              key={row.category}
-              label={`${sentence(row.category)}, ${formatMoney(row.total, currency)}`}
-              onSelect={() => onOpen(hrefFor({ category: row.category }))}
-              mark={
-                <RowMark className="text-sm font-semibold tabular-nums">
-                  {share(row.total, total)}
-                </RowMark>
-              }
-              title={sentence(row.category)}
-              meta={
-                // The bar is the share in the mark, drawn: the long ones stand out
-                // before a single figure is read.
-                <span className="flex h-1.5 w-full max-w-60" aria-hidden>
-                  <span
-                    className="rounded-full bg-neutral-800 dark:bg-neutral-300"
-                    style={{ width: `${Math.max((row.total / total) * 100, 1.5)}%` }}
-                  />
-                </span>
-              }
-              trailing={
-                <span className="shrink-0 text-base font-semibold whitespace-nowrap tabular-nums">
-                  {formatMoney(row.total, currency)}
-                </span>
-              }
-            />
-          ))}
-        </ul>
-      </section>
-
-      <section aria-label="How it was paid">
-        <ListHeading>How it was paid</ListHeading>
-        <ul className="flex flex-col">
-          {statement.expenses_by_method.map((row) => {
-            const method = row.payment_method
-            return (
-              <ListRow
-                key={method ?? 'none'}
-                label={`${sentence(method) || 'No method'}, ${formatMoney(row.total, currency)}`}
-                onSelect={method ? () => onOpen(hrefFor({ method })) : undefined}
-                mark={<MethodMark type="expense" method={method} />}
-                title={sentence(method) || 'No method'}
-                meta={
-                  <StatusMeta tone={fromBalance.has(method) ? 'on' : 'off'}>
-                    {fromBalance.has(method) ? 'From balance' : 'Paid apart'}
-                  </StatusMeta>
-                }
-                trailing={
-                  <span className="shrink-0 text-base font-semibold whitespace-nowrap tabular-nums">
-                    {formatMoney(row.total, currency)}
-                  </span>
-                }
-              />
-            )
-          })}
-        </ul>
-      </section>
-    </>
+    <span className="flex shrink-0 flex-col items-end">
+      <span className="text-base font-semibold whitespace-nowrap tabular-nums">
+        {value}
+      </span>
+      {under && (
+        <span className="text-xs text-muted-foreground tabular-nums">{under}</span>
+      )}
+    </span>
   )
 }

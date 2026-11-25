@@ -7,12 +7,12 @@ import { EmptyCard } from '@/components/empty-card'
 import { ListHeading } from '@/components/list-heading'
 import { ListRow, RowMark } from '@/components/list-row'
 import { PageHeader } from '@/components/page-header'
-import { useCurrency, usePermissions } from '@/components/session-context'
+import { useMoney, usePermissions } from '@/components/session-context'
 import { Spinner } from '@/components/ui/spinner'
 import { useBalances } from '@/hooks/ledger'
 import { getErrorMessage } from '@/lib/api/errors'
 import type { PropertyBalance } from '@/lib/api/types'
-import { counted, formatDate, formatMoney } from '@/lib/format'
+import { counted, formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 /**
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
  */
 export function Balances() {
   const { manages } = usePermissions()
-  const currency = useCurrency()
+  const money = useMoney()
   const balances = useBalances()
   const rows = balances.data ?? []
   const owing = rows.filter((row) => row.balance < 0)
@@ -52,7 +52,7 @@ export function Balances() {
             >
               <div className="mb-1.5 text-sm text-muted-foreground">Owed to us</div>
               <p className="text-[32px] font-bold tracking-tight whitespace-nowrap tabular-nums sm:text-5xl">
-                {formatMoney(-owed, currency)}
+                {money(-owed)}
               </p>
               <p className="mt-4 text-[15px] text-muted-foreground">
                 {counted(owing.length, 'property is', 'properties are')} in the red, of{' '}
@@ -64,7 +64,7 @@ export function Balances() {
             <ListHeading>{counted(rows.length, 'property', 'properties')}</ListHeading>
             <ul className="flex flex-col">
               {rows.map((row) => (
-                <BalanceRow key={row.property_id} row={row} currency={currency} />
+                <BalanceRow key={row.property_id} row={row} />
               ))}
             </ul>
           </div>
@@ -74,11 +74,12 @@ export function Balances() {
   )
 }
 
-function BalanceRow({ row, currency }: { row: PropertyBalance; currency: string }) {
+function BalanceRow({ row }: { row: PropertyBalance }) {
+  const money = useMoney()
   const router = useRouter()
   return (
     <ListRow
-      label={`${row.property_name}, ${formatMoney(row.balance, currency)}`}
+      label={`${row.property_name}, ${money(row.balance)}`}
       onSelect={() => router.push(`/transactions?property=${row.property_id}&period=all`)}
       mark={
         <RowMark>
@@ -100,7 +101,7 @@ function BalanceRow({ row, currency }: { row: PropertyBalance; currency: string 
               : 'text-neutral-900 dark:text-neutral-100',
           )}
         >
-          {formatMoney(row.balance, currency)}
+          {money(row.balance)}
         </span>
       }
     />

@@ -14,7 +14,12 @@ import {
 } from '@/components/ledger/filter-chips'
 import { ListRow, RowMark } from '@/components/list-row'
 import { PageAction, PageHeader } from '@/components/page-header'
-import { useCompany, useCurrency, usePermissions } from '@/components/session-context'
+import {
+  useCompany,
+  useCurrency,
+  useMoney,
+  usePermissions,
+} from '@/components/session-context'
 import { SummaryCard } from '@/components/summary-card'
 import { Button } from '@/components/ui/button'
 import { SelectItem } from '@/components/ui/select'
@@ -26,7 +31,6 @@ import type { schemas } from '@/lib/api/client'
 import {
   counted,
   formatDayHeading,
-  formatMoney,
   groupConsecutive,
   sentence,
   todayIn,
@@ -52,6 +56,7 @@ export function GuestExpenses() {
   const { manages } = usePermissions()
   const company = useCompany()
   const currency = useCurrency()
+  const money = useMoney()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -110,10 +115,10 @@ export function GuestExpenses() {
 
       <SummaryCard
         label={`Not billed yet · ${getPeriodLabel(filters.period, today, customRange(filters))}`}
-        headline={data && formatMoney(data.total - data.billed_total, currency)}
+        headline={data && money(data.total - data.billed_total)}
         figures={[
-          { label: 'Billed', value: data && formatMoney(data.billed_total, currency) },
-          { label: 'Total', value: data && formatMoney(data.total, currency) },
+          { label: 'Billed', value: data && money(data.billed_total) },
+          { label: 'Total', value: data && money(data.total) },
           { label: 'Entries', value: data?.count.toLocaleString('en-US') },
         ]}
       />
@@ -204,7 +209,7 @@ export function GuestExpenses() {
                 {day.items.map((row) => (
                   <ListRow
                     key={row.id}
-                    label={`${sentence(row.concept)}, ${formatMoney(row.amount, currency)}`}
+                    label={`${sentence(row.concept)}, ${money(row.amount)}`}
                     onSelect={() => openDialog(row)}
                     mark={
                       <RowMark>
@@ -222,7 +227,7 @@ export function GuestExpenses() {
                     trailing={
                       <span className="flex shrink-0 flex-col items-end">
                         <span className="text-base font-semibold whitespace-nowrap tabular-nums">
-                          {formatMoney(row.amount, currency)}
+                          {money(row.amount)}
                         </span>
                         <span
                           className={cn(

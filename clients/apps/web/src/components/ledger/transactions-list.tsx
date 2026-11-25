@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 
 import { ListRow } from '@/components/list-row'
 import type { Property, Transaction } from '@/lib/api/types'
-import { formatDayHeading, formatMoney, groupConsecutive, sentence } from '@/lib/format'
+import { useMoney } from '@/components/session-context'
+import { formatDayHeading, groupConsecutive, sentence } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { MethodMark } from './method-icon'
@@ -15,17 +16,16 @@ export function TransactionsList({
   transactions,
   properties,
   today,
-  currency,
   empty,
   onSelect,
 }: {
   transactions: Transaction[]
   properties: Map<string, Property>
   today: string
-  currency: string
   empty: ReactNode
   onSelect: (transaction: Transaction) => void
 }) {
+  const money = useMoney()
   if (transactions.length === 0) {
     return <div className="p-6 text-center text-sm text-muted-foreground">{empty}</div>
   }
@@ -43,7 +43,7 @@ export function TransactionsList({
               return (
                 <ListRow
                   key={transaction.id}
-                  label={`${sentence(transaction.concept)}, ${formatMoney(transaction.amount, currency)}`}
+                  label={`${sentence(transaction.concept)}, ${money(transaction.amount)}`}
                   onSelect={() => onSelect(transaction)}
                   mark={
                     <MethodMark
@@ -74,7 +74,7 @@ export function TransactionsList({
                         )}
                       >
                         {income ? '+' : ''}
-                        {formatMoney(transaction.amount, currency)}
+                        {money(transaction.amount)}
                       </span>
                       {transaction.affects_balance && !income && (
                         <span className="text-xs text-muted-foreground">
