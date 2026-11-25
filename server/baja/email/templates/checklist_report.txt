@@ -1,0 +1,14 @@
+{{ title }}
+
+Property: {{ property }}
+{% if author %}Completed by: {{ author }}
+{% endif %}Date: {{ completed }}
+
+Checked:
+{% for item in checked %}- {{ item.description }}{% if item.note %} (Note: {{ item.note }}){% endif %}
+{% else %}Nothing was checked.
+{% endfor %}{% if unchecked %}
+Not checked:
+{% for item in unchecked %}- {{ item.description }}{% if item.note %} (Note: {{ item.note }}){% endif %}
+{% endfor %}{% endif %}
+{{ company }}

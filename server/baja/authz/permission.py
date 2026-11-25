@@ -15,6 +15,8 @@ class Permission(StrEnum):
     guest_expenses_read = "guest_expenses:read"
     guest_expenses_manage = "guest_expenses:manage"
     recurring_charges_manage = "recurring_charges:manage"
+    checklists_read = "checklists:read"
+    checklists_manage = "checklists:manage"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
@@ -30,6 +32,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.guest_expenses_read,
             Permission.guest_expenses_manage,
             Permission.recurring_charges_manage,
+            Permission.checklists_read,
+            Permission.checklists_manage,
         }
     ),
     Role.homeowner: frozenset(
@@ -37,6 +41,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.properties_read,
             Permission.transactions_read,
             Permission.guest_expenses_read,
+            Permission.checklists_read,
         }
     ),
 }
@@ -57,6 +62,8 @@ DENIED: dict[Permission, str] = {
     Permission.recurring_charges_manage: (
         "Only owners and managers can manage recurring charges."
     ),
+    Permission.checklists_read: "You can't view checklists.",
+    Permission.checklists_manage: "Only owners and managers can fill in checklists.",
 }
 
 

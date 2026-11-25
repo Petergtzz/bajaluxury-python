@@ -18,7 +18,9 @@ Usage: python -m scripts.import_legacy <laravel-dsn> [--dry-run]
 
 import asyncio
 import datetime as dt
+import json
 import sys
+import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -29,11 +31,16 @@ from sqlalchemy import or_, select, true, update
 from sqlalchemy.dialects.postgresql import insert
 
 from baja.company.service import today as company_today
+from baja.kit.db.models import RecordModel
 from baja.kit.db.postgres import AsyncSession, create_async_sessionmaker
 from baja.kit.utils import generate_uuid, utc_now
 from baja.ledger.repository import TransactionRepository
 from baja.ledger.service import affects_balance
 from baja.models import (
+    Checklist,
+    ChecklistItem,
+    ChecklistTemplateItem,
+    ChecklistType,
     Company,
     Currency,
     GuestExpense,
@@ -252,6 +259,38 @@ class LegacyGuestExpense:
 
 
 @dataclass(frozen=True)
+class LegacyTemplateItem:
+    id: int
+    type: str
+    description: str
+    position: int
+
+
+@dataclass(frozen=True)
+class LegacyChecklist:
+    id: int
+    house_id: int
+    user_id: int
+    type: str
+    status: str
+    completed_at: dt.datetime | None
+    email_sent_to: list[str] | None
+    created_at: dt.datetime | None
+
+
+@dataclass(frozen=True)
+class LegacyChecklistItem:
+    id: int
+    checklist_id: int
+    description: str
+    position: int
+    is_checked: bool
+    note: str | None
+    checked_at: dt.datetime | None
+    created_at: dt.datetime | None
+
+
+@dataclass(frozen=True)
 class Legacy:
     houses: list[LegacyHouse]
     transactions: list[LegacyTransaction]
@@ -260,6 +299,9 @@ class Legacy:
     guest_expenses: list[LegacyGuestExpense] = field(default_factory=list)
     users: list[LegacyUser] = field(default_factory=list)
     recurring_charges: list[LegacyRecurringCharge] = field(default_factory=list)
+    template_items: list[LegacyTemplateItem] = field(default_factory=list)
+    checklists: list[LegacyChecklist] = field(default_factory=list)
+    checklist_items: list[LegacyChecklistItem] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -315,6 +357,17 @@ async def read_legacy(dsn: str) -> Legacy:
             "id, house_id, amount, category, concept, date, description, created_at",
         )
         balances = await connection.fetch("SELECT house_id, balance FROM balances")
+        template_items = await connection.fetch(
+            "SELECT id, type, description, position FROM checklist_template_items"
+        )
+        checklists = await connection.fetch(
+            "SELECT id, house_id, user_id, type, status, completed_at, "
+            "email_sent_to, created_at FROM checklists"
+        )
+        checklist_items = await connection.fetch(
+            "SELECT id, checklist_id, description, position, is_checked, note, "
+            "checked_at, created_at FROM checklist_items"
+        )
     finally:
         await connection.close()
     return Legacy(
@@ -324,6 +377,20 @@ async def read_legacy(dsn: str) -> Legacy:
         guest_expenses=[LegacyGuestExpense(**row) for row in guest_expenses],
         users=[LegacyUser(**row) for row in users],
         recurring_charges=RECURRING_CHARGES,
+        template_items=[LegacyTemplateItem(**row) for row in template_items],
+        checklists=[
+            LegacyChecklist(
+                **{
+                    **row,
+                    # asyncpg hands json over as text.
+                    "email_sent_to": json.loads(row["email_sent_to"])
+                    if row["email_sent_to"]
+                    else None,
+                }
+            )
+            for row in checklists
+        ],
+        checklist_items=[LegacyChecklistItem(**row) for row in checklist_items],
     )
 
 
@@ -360,6 +427,7 @@ async def import_legacy(session: AsyncSession, legacy: Legacy) -> ImportReport:
         raise LegacyDataInvalid(problems)
     await _mirror(session, Transaction, transactions)
     await _mirror(session, GuestExpense, guest_expenses)
+    await _import_checklists(session, legacy, properties, users)
     balances = {
         balance.property_id: balance.balance
         for balance in await TransactionRepository.from_session(session).list_balances(
@@ -645,11 +713,141 @@ def _common_row(
             users[item.entered_by].id if item.entered_by in users else None
         ),
         "deleted_at": None,
-        # Laravel kept UTC without saying so.
-        "created_at": (
-            item.created_at.replace(tzinfo=dt.UTC) if item.created_at else utc_now()
-        ),
+        "created_at": _utc(item.created_at),
     }
+
+
+# Copied rows get ids derived from their Laravel ids: a second run finds them
+# by id, and only they are version 5 (this app's own are version 7).
+LEGACY_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://bajaluxurymgmt.com/laravel")
+
+
+def legacy_id(kind: str, id: int) -> uuid.UUID:
+    return uuid.uuid5(LEGACY_NAMESPACE, f"{kind}:{id}")
+
+
+async def _import_checklists(
+    session: AsyncSession,
+    legacy: Legacy,
+    properties: dict[int, Property],
+    users: dict[int, User],
+) -> None:
+    types = {type.value for type in ChecklistType}
+    checklist_ids = {checklist.id for checklist in legacy.checklists}
+    problems = [
+        f"checklist template item {item.id}: unknown type {item.type!r}"
+        for item in legacy.template_items
+        if item.type not in types
+    ]
+    for checklist in legacy.checklists:
+        if checklist.type not in types:
+            problems.append(
+                f"checklist {checklist.id}: unknown type {checklist.type!r}"
+            )
+        if checklist.house_id not in properties:
+            problems.append(
+                f"checklist {checklist.id}: unknown house {checklist.house_id}"
+            )
+    problems += [
+        f"checklist item {item.id}: unknown checklist {item.checklist_id}"
+        for item in legacy.checklist_items
+        if item.checklist_id not in checklist_ids
+    ]
+    if problems:
+        raise LegacyDataInvalid(problems)
+
+    await _mirror_by_id(
+        session,
+        ChecklistTemplateItem,
+        [
+            {
+                "id": legacy_id("checklist_template_item", item.id),
+                "type": ChecklistType(item.type),
+                "description": item.description,
+                "position": item.position,
+                "deleted_at": None,
+            }
+            for item in legacy.template_items
+        ],
+    )
+    await _mirror_by_id(
+        session,
+        Checklist,
+        [
+            {
+                "id": legacy_id("checklist", checklist.id),
+                "property_id": properties[checklist.house_id].id,
+                "created_by_id": (
+                    users[checklist.user_id].id if checklist.user_id in users else None
+                ),
+                "type": ChecklistType(checklist.type),
+                "completed_at": (
+                    _utc(checklist.completed_at or checklist.created_at)
+                    if checklist.status == "completed"
+                    else None
+                ),
+                "emailed_to": checklist.email_sent_to or [],
+                "created_at": _utc(checklist.created_at),
+                "deleted_at": None,
+            }
+            for checklist in legacy.checklists
+        ],
+    )
+    await _mirror_by_id(
+        session,
+        ChecklistItem,
+        [
+            {
+                "id": legacy_id("checklist_item", item.id),
+                "checklist_id": legacy_id("checklist", item.checklist_id),
+                "description": item.description,
+                "position": item.position,
+                "is_checked": item.is_checked,
+                "note": item.note,
+                "checked_at": _utc(item.checked_at) if item.checked_at else None,
+                "created_at": _utc(item.created_at),
+                "deleted_at": None,
+            }
+            for item in legacy.checklist_items
+        ],
+    )
+
+
+async def _mirror_by_id(
+    session: AsyncSession, model: type[RecordModel], rows: list[dict[str, Any]]
+) -> None:
+    """Makes the model's copied rows exactly `rows`, by their derived ids."""
+    for batch in _batches(rows):
+        statement = insert(model).values(batch)
+        copied = [c for c in batch[0] if c not in {"id", "created_at"}]
+        await session.execute(
+            statement.on_conflict_do_update(
+                index_elements=[model.id],
+                set_={c: statement.excluded[c] for c in copied}
+                | {"modified_at": utc_now()},
+                where=or_(
+                    *(
+                        getattr(model, c).is_distinct_from(statement.excluded[c])
+                        for c in copied
+                    )
+                ),
+            )
+        )
+    keys = {row["id"] for row in rows}
+    existing = await session.execute(select(model.id).where(model.deleted_at.is_(None)))
+    gone = [id for (id,) in existing if id.version == 5 and id not in keys]
+    for ids in _batches(gone):
+        await session.execute(
+            update(model).where(model.id.in_(ids)).values(deleted_at=utc_now())
+        )
+    for loaded in list(session.identity_map.values()):
+        if isinstance(loaded, model):
+            session.expire(loaded)
+
+
+def _utc(moment: dt.datetime | None) -> dt.datetime:
+    """Laravel kept UTC without saying so."""
+    return moment.replace(tzinfo=dt.UTC) if moment else utc_now()
 
 
 def _batches[T](items: list[T]) -> Iterable[list[T]]:
@@ -677,7 +875,8 @@ async def main(dsn: str, *, dry_run: bool) -> int:
     print(  # noqa: T201
         f"{len(legacy.houses)} properties, {len(legacy.transactions)} transactions, "
         f"{len(legacy.guest_expenses)} guest expenses, {len(legacy.users)} users, "
-        f"{len(legacy.recurring_charges)} recurring charges"
+        f"{len(legacy.recurring_charges)} recurring charges, "
+        f"{len(legacy.checklists)} checklists"
         + (" (dry run, nothing saved)" if dry_run else "")
     )
     checks = report.balances

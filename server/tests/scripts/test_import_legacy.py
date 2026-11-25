@@ -8,6 +8,9 @@ from sqlalchemy import select
 import baja.company.service
 from baja.kit.db.postgres import AsyncSession
 from baja.models import (
+    Checklist,
+    ChecklistItem,
+    ChecklistTemplateItem,
     Company,
     GuestExpense,
     PaymentMethod,
@@ -22,10 +25,13 @@ from scripts.import_legacy import (
     RECURRING_CHARGES,
     BalanceCheck,
     Legacy,
+    LegacyChecklist,
+    LegacyChecklistItem,
     LegacyDataInvalid,
     LegacyGuestExpense,
     LegacyHouse,
     LegacyRecurringCharge,
+    LegacyTemplateItem,
     LegacyTransaction,
     LegacyUser,
     import_legacy,
@@ -467,4 +473,117 @@ async def test_copies_who_gets_the_monthly_report(session: AsyncSession) -> None
     users = (await session.execute(select(User).order_by(User.email))).scalars()
     assert [u.email for u in users if u.receives_monthly_report] == [
         "user3@example.com"
+    ]
+
+
+CREATED = dt.datetime(2026, 6, 1, 15, 30)
+CHECKLISTS = dataclasses.replace(
+    LEGACY,
+    users=USERS,
+    template_items=[
+        LegacyTemplateItem(1, "check_in", "Keys are in the lockbox", 1),
+        LegacyTemplateItem(2, "weekly", "Run every tap", 1),
+    ],
+    checklists=[
+        LegacyChecklist(
+            10, 1, 67, "check_in", "completed", CREATED, ["a@example.com"], CREATED
+        ),
+        LegacyChecklist(11, 40, 999, "weekly", "in_progress", None, None, CREATED),
+    ],
+    checklist_items=[
+        LegacyChecklistItem(
+            100, 10, "Keys are in the lockbox", 1, True, "two", CREATED, CREATED
+        ),
+        LegacyChecklistItem(101, 11, "Run every tap", 1, False, None, None, CREATED),
+    ],
+)
+
+
+async def live[M: (Checklist, ChecklistItem, ChecklistTemplateItem)](
+    session: AsyncSession, model: type[M]
+) -> list[M]:
+    result = await session.execute(
+        select(model).where(model.deleted_at.is_(None)).order_by(model.created_at)
+    )
+    return list(result.scalars())
+
+
+async def test_copies_checklists_their_items_and_templates(
+    session: AsyncSession,
+) -> None:
+    await import_legacy(session, CHECKLISTS)
+
+    templates = await live(session, ChecklistTemplateItem)
+    checklists = await live(session, Checklist)
+    items = await live(session, ChecklistItem)
+    assert sorted(t.description for t in templates) == [
+        "Keys are in the lockbox",
+        "Run every tap",
+    ]
+    done, open_ = sorted(checklists, key=lambda c: c.type)
+    manager = (
+        await session.execute(select(User).where(User.email == "user67@example.com"))
+    ).scalar_one()
+    assert (done.completed_at, done.emailed_to, done.created_by_id) == (
+        CREATED.replace(tzinfo=dt.UTC),
+        ["a@example.com"],
+        manager.id,
+    )
+    assert (open_.completed_at, open_.emailed_to, open_.created_by_id) == (
+        None,
+        [],
+        None,
+    )
+    assert {(i.checklist_id, i.is_checked, i.note) for i in items} == {
+        (done.id, True, "two"),
+        (open_.id, False, None),
+    }
+
+
+async def test_running_again_follows_and_keeps_the_apps_own(
+    session: AsyncSession, save_fixture: SaveFixture
+) -> None:
+    await import_legacy(session, CHECKLISTS)
+    own = ChecklistTemplateItem(type="weekly", description="Check the roof", position=2)
+    await save_fixture(own)
+    own_id = own.id
+
+    await import_legacy(
+        session,
+        dataclasses.replace(
+            CHECKLISTS,
+            template_items=[
+                dataclasses.replace(CHECKLISTS.template_items[0], description="Keys!")
+            ],
+            checklists=CHECKLISTS.checklists[:1],
+            checklist_items=CHECKLISTS.checklist_items[:1],
+        ),
+    )
+
+    templates = await live(session, ChecklistTemplateItem)
+    assert sorted((t.description, t.id == own_id) for t in templates) == [
+        ("Check the roof", True),
+        ("Keys!", False),
+    ]
+    assert len(await live(session, Checklist)) == 1
+    assert len(await live(session, ChecklistItem)) == 1
+
+
+async def test_refuses_checklists_it_cannot_place(session: AsyncSession) -> None:
+    broken = dataclasses.replace(
+        CHECKLISTS,
+        template_items=[LegacyTemplateItem(1, "monthly", "x", 1)],
+        checklists=[dataclasses.replace(CHECKLISTS.checklists[0], house_id=99)],
+        checklist_items=[
+            dataclasses.replace(CHECKLISTS.checklist_items[0], checklist_id=7)
+        ],
+    )
+
+    with pytest.raises(LegacyDataInvalid) as error:
+        await import_legacy(session, broken)
+
+    assert error.value.problems == [
+        "checklist template item 1: unknown type 'monthly'",
+        "checklist 10: unknown house 99",
+        "checklist item 100: unknown checklist 7",
     ]

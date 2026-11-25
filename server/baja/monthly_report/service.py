@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import exists, func, select
 from sqlalchemy.orm import contains_eager
 
-from baja.kit.db.postgres import AsyncReadSession, AsyncSession
+from baja.kit.db.postgres import AsyncSession
 from baja.kit.repository import RepositoryBase
 from baja.models import MonthlyReport, Property, PropertyMember, Role, User
 from baja.worker import enqueue_job
@@ -80,10 +80,3 @@ async def queue_due(
             enqueue_job(SEND, str(report.id))
         queued.append(user.email)
     return queued
-
-
-async def list_owner_emails(session: AsyncReadSession) -> list[str]:
-    result = await session.execute(
-        select(User.email).where(User.deleted_at.is_(None), User.role == Role.owner)
-    )
-    return list(result.scalars())

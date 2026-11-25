@@ -12,9 +12,10 @@ from baja.property.repository import PropertyRepository
 from baja.statement.endpoints import PDF, statement_filename
 from baja.statement.pdf import render_statement_pdf
 from baja.statement.service import build_statement
+from baja.user.repository import UserRepository
 from baja.worker import actor, job_session
 
-from .service import SEND, MonthlyReportRepository, list_owner_emails
+from .service import SEND, MonthlyReportRepository
 
 log = logging.getLogger("baja.monthly_report")
 
@@ -70,7 +71,9 @@ async def send_monthly_report(report_id: str) -> None:
                 to=(user.email,),
                 bcc=tuple(
                     email
-                    for email in await list_owner_emails(session)
+                    for email in await UserRepository.from_session(
+                        session
+                    ).list_owner_emails()
                     if email.lower() != user.email.lower()
                 ),
                 subject=f"Your {month:%B %Y} statement",

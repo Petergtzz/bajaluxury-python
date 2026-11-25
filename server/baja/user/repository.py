@@ -63,3 +63,10 @@ class UserRepository(RepositoryBase[User]):
         for property_id in property_ids - current:
             self.session.add(PropertyMember(user_id=user.id, property_id=property_id))
         await self.session.flush()
+
+    async def list_owner_emails(self) -> list[str]:
+        """Who is copied on what the company sends: its owners."""
+        result = await self.session.execute(
+            select(User.email).where(User.deleted_at.is_(None), User.role == Role.owner)
+        )
+        return list(result.scalars())

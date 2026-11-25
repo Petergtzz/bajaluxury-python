@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ property }}{% endblock %}
+{% macro items(list, mark, color) %}
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;">
+{% for item in list %}
+<tr>
+<td style="width:20px;vertical-align:top;padding:4px 0;color:{{ color }};font-weight:700;">{{ mark }}</td>
+<td style="vertical-align:top;padding:4px 0;font-size:15px;line-height:22px;">{{ item.description }}{% if item.note %}<br><span style="font-size:14px;color:#78716c;">Note: {{ item.note }}</span>{% endif %}</td>
+</tr>
+{% endfor %}
+</table>
+{% endmacro %}
+{% block content %}
+<h1 style="margin:0 0 16px;font-size:22px;line-height:28px;">{{ title }}</h1>
+<p style="margin:0 0 24px;font-size:15px;line-height:24px;">
+<strong>{{ property }}</strong><br>
+{% if author %}Completed by {{ author }}<br>{% endif %}
+<span style="color:#78716c;">{{ completed }}</span>
+</p>
+<p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#78716c;">Checked</p>
+{% if checked %}{{ items(checked, "✓", "#15803d") }}{% else %}<p style="margin:0 0 20px;color:#78716c;">Nothing was checked.</p>{% endif %}
+{% if unchecked %}
+<p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#78716c;">Not checked</p>
+{{ items(unchecked, "–", "#a8a29e") }}
+{% endif %}
+<p style="margin:0;font-size:14px;line-height:20px;">{{ company }}</p>
+{% endblock %}

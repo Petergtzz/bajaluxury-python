@@ -1,6 +1,7 @@
 from baja.kit.db.models import Model, RecordModel
 
 from .api_token import ApiToken
+from .checklist import Checklist, ChecklistItem, ChecklistTemplateItem, ChecklistType
 from .company import Company, Currency
 from .guest_expense import GuestExpense
 from .login_code import LoginCode
@@ -14,6 +15,10 @@ from .user_session import UserSession
 
 __all__ = [
     "ApiToken",
+    "Checklist",
+    "ChecklistItem",
+    "ChecklistTemplateItem",
+    "ChecklistType",
     "Company",
     "Currency",
     "GuestExpense",
